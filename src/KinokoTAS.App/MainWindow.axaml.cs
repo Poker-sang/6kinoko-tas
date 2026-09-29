@@ -1,0 +1,104 @@
+using Avalonia.Controls; using Avalonia.Input; using Avalonia.Interactivity; using Avalonia.Platform.Storage; using KinokoTAS.Core;
+namespace KinokoTAS.App;
+public partial class MainWindow : Window {
+    public TasProject? Project {get;private set;}
+    private bool dirty,allowClose,busy;
+    private string? sourcePath;
+    public MainWindow() {
+        InitializeComponent();ActionPicker.ItemsSource=Replay.Labels;
+        Timeline.CellClicked+=(frame,action)=>{if(busy)return;SelectFrame(frame);if(action>=0)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));};
+        Timeline.Scrolled+=delta=>{FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
+        Closing+=async (_,e)=> {
+            if(allowClose || !dirty)return;
+            e.Cancel=true;
+            if(await ConfirmDiscard()){allowClose=true;Close();}
+        };
+        KeyDown+=async (_,e)=> {
+            if(!e.KeyModifiers.HasFlag(KeyModifiers.Control))return;
+            if(e.Key==Key.O){e.Handled=true;await OpenPicker();}
+            if(e.Key==Key.S){e.Handled=true;await SaveProject();}
+            if(e.Key==Key.Z){e.Handled=true;Project?.Undo();}
+            if(e.Key==Key.Y){e.Handled=true;Project?.Redo();}
+        };
+    }
+    private async Task<bool> ConfirmDiscard() {
+        var dialog=new Window{Title="未保存的修改",Width=420,Height=175,CanResize=false,WindowStartupLocation=WindowStartupLocation.CenterOwner};
+        var panel=new StackPanel{Margin=new Avalonia.Thickness(20),Spacing=15};
+        panel.Children.Add(new TextBlock{Text="放弃未保存的编辑？原始录制不会被修改。",TextWrapping=Avalonia.Media.TextWrapping.Wrap});
+        var buttons=new StackPanel{Orientation=Avalonia.Layout.Orientation.Horizontal,Spacing=12};
+        var cancel=new Button{Content="返回编辑"};cancel.Click+=(_,_)=>dialog.Close(false);
+        var discard=new Button{Content="放弃修改"};discard.Click+=(_,_)=>dialog.Close(true);
+        buttons.Children.Add(cancel);buttons.Children.Add(discard);panel.Children.Add(buttons);dialog.Content=panel;
+        return await dialog.ShowDialog<bool>(this);
+    }
+    private async Task OpenPicker() {
+        if(busy)return;
+        var files=await StorageProvider.OpenFilePickerAsync(new(){Title="打开录制或 TAS 项目",AllowMultiple=false,FileTypeFilter=[new("Kinoko TAS"){Patterns=["*.krec","*.ktas"]}]});
+        if(files.Count>0 && files[0].TryGetLocalPath() is string p)await OpenPathAsync(p);
+    }
+    public async Task OpenPathAsync(string path) {
+        if(busy || (dirty && !await ConfirmDiscard()))return;
+        busy=true;StatusLabel.Text="正在校验并读取录制…";
+        try {
+            var loaded=await Task.Run(()=>Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)?TasProject.Load(path):new TasProject(Replay.Load(path),Path.GetFileName(path)));
+            if(Project is not null)Project.Changed-=OnChanged;
+            Project=loaded;sourcePath=Path.GetFullPath(path);dirty=false;Project.Changed+=OnChanged;
+            Timeline.Project=Project;Timeline.FirstFrame=0;Timeline.SelectedFrame=0;FrameScroll.Value=0;
+            FrameScroll.Maximum=Math.Max(0,Project.Source.Count-1);FrameScroll.ViewportSize=20;
+            JumpFrame.Maximum=RangeStart.Maximum=RangeEnd.Maximum=Math.Max(0,Project.Source.Count-1);
+            RangeStart.Value=RangeEnd.Value=JumpFrame.Value=0;
+            SaveButton.IsEnabled=ExportButton.IsEnabled=true;
+            HoldButton.IsEnabled=ReleaseButton.IsEnabled=Project.Source.Count>0;
+            StatusLabel.Text=$"已校验 {Project.Source.Count:N0} 帧 · 原始文件只读 · 橙点表示编辑";Refresh();
+        }catch(Exception ex){StatusLabel.Text="打开失败："+ex.Message;}
+        finally{busy=false;}
+    }
+    private void OnChanged(){dirty=true;Refresh();}
+    private void Refresh() {
+        if(Project is null)return;
+        Title=$"{(dirty?"* ":"")}{Project.SourceName} — Kinoko TAS";
+        DocumentLabel.Text=$"{Project.SourceName}  ·  {Project.Source.Count:N0} 帧 / {Project.Source.Count/60.0:F2} 秒  ·  {Project.EditCount:N0} 处编辑";
+        UndoButton.IsEnabled=Project.CanUndo;RedoButton.IsEnabled=Project.CanRedo;
+        int frame=Timeline.SelectedFrame;
+        FrameLabel.Text=Project.Source.Count==0?"空录制":frame.ToString("D6");
+        if(Project.Source.Count>0)FrameDetails.Text=$"时间 {frame/60.0:F3} 秒\n原始 RNG 前 {Project.Source.RandomBefore(frame):X8}\n原始 RNG 后 {Project.Source.RandomAfter(frame):X8}\n原始检查值\n{Project.Source.Checkpoint(frame):X16}".Replace("\n","
+");
+        ValidationLabel.Text=Project.InvalidFrom is int first ? $"输入从第 {first} 帧起有变化。后续原始检查值不能验证编辑结果；需引擎重新执行。保存为 .ktas 项目。" : "原始录制校验完整。当前仅编辑输入；尚未连接游戏，不能在这里运行或逐帧推进游戏。";
+        Timeline.InvalidateVisual();
+    }
+    private void SelectFrame(int f) {
+        if(Project is null || Project.Source.Count==0)return;
+        f=Math.Clamp(f,0,Project.Source.Count-1);Timeline.SelectedFrame=f;JumpFrame.Value=f;RangeStart.Value=RangeEnd.Value=f;
+        int rows=Math.Max(1,(int)((Timeline.Bounds.Height-TimelineControl.HeaderHeight)/TimelineControl.RowHeight));
+        if(f<Timeline.FirstFrame || f>=Timeline.FirstFrame+rows)FrameScroll.Value=f;
+        Refresh();
+    }
+    private async Task SaveProject() {
+        if(Project is null || busy)return;
+        var file=await StorageProvider.SaveFilePickerAsync(new(){Title="另存 TAS 项目",SuggestedFileName=Path.GetFileNameWithoutExtension(Project.SourceName)+".ktas",DefaultExtension="ktas",FileTypeChoices=[new("TAS 项目"){Patterns=["*.ktas"]}]});
+        if(file?.TryGetLocalPath() is not string path)return;
+        if(!Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)){StatusLabel.Text="项目必须使用 .ktas 扩展名。";return;}
+        try{Project.Save(path);dirty=false;StatusLabel.Text="项目已保存："+path;Refresh();}catch(Exception ex){StatusLabel.Text="保存失败："+ex.Message;}
+    }
+    private async void ExportClick(object? s,RoutedEventArgs e) {
+        if(Project is null || busy)return;
+        var file=await StorageProvider.SaveFilePickerAsync(new(){Title="导出未修改的原始录制",SuggestedFileName="original.krec",DefaultExtension="krec"});
+        if(file?.TryGetLocalPath() is not string path)return;
+        if(Path.GetFullPath(path).Equals(sourcePath,OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal)){StatusLabel.Text="请使用不同路径，原始文件保持只读。";return;}
+        try{Project.ExportSource(path);StatusLabel.Text="已导出原始录制（不包含项目中的输入编辑）。";}catch(Exception ex){StatusLabel.Text="导出失败："+ex.Message;}
+    }
+    private void EditRange(bool down) {
+        if(Project is null || busy)return;
+        try{Project.SetRange((int)(RangeStart.Value??0),(int)(RangeEnd.Value??0),ActionPicker.SelectedIndex,down);StatusLabel.Text="区间已更新，可撤销。";}catch(Exception){StatusLabel.Text="请确认起止帧顺序和动作选择。";}
+    }
+    private async void OpenClick(object? s,RoutedEventArgs e)=>await OpenPicker();
+    private async void SaveClick(object? s,RoutedEventArgs e)=>await SaveProject();
+    private void UndoClick(object? s,RoutedEventArgs e)=>Project?.Undo();
+    private void RedoClick(object? s,RoutedEventArgs e)=>Project?.Redo();
+    private void HoldClick(object? s,RoutedEventArgs e)=>EditRange(true);
+    private void ReleaseClick(object? s,RoutedEventArgs e)=>EditRange(false);
+    private void PreviousClick(object? s,RoutedEventArgs e)=>SelectFrame(Timeline.SelectedFrame-1);
+    private void NextClick(object? s,RoutedEventArgs e)=>SelectFrame(Timeline.SelectedFrame+1);
+    private void JumpClick(object? s,RoutedEventArgs e)=>SelectFrame((int)(JumpFrame.Value??0));
+    private void ScrollChanged(object? s,Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e) {if(Timeline is not null){Timeline.FirstFrame=(int)e.NewValue;Timeline.InvalidateVisual();}}
+}
