@@ -56,6 +56,15 @@ internal static class Program {
    Check(window.FindControl<Image>("GameImage")!.Source is not null,"embedded preview arrives in UI");
    using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var stop=window.StopGameSessionAsync();while(!stop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}stop.GetAwaiter().GetResult();
+   var externalSession=new FileGameSession(fakeExe,Path.Combine(output,"external-session"),null,Path.Combine(output,"initial"),new string('a',64),true);
+   var externalConnect=window.AttachGameSessionAsync(externalSession);
+   while(!externalConnect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalConnect.GetAwaiter().GetResult();
+   externalSession.ResumeAsync(1,default).GetAwaiter().GetResult();
+   var before=externalSession.ReadState()!.Sequence;
+   window.PauseOnDeactivateAsync().GetAwaiter().GetResult();
+   Check(externalSession.ReadState()!.Sequence==before,"external window focus transfer does not pause recording");
+   Check(File.Exists(Path.Combine(externalSession.SessionDirectory,"external-window.txt")),"external mode launch argument reaches child");
+   var externalStop=window.StopGameSessionAsync();while(!externalStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalStop.GetAwaiter().GetResult();
    window.Project.Undo();Check(window.Project.EditCount==0,"UI undo");
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
   }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
@@ -64,6 +73,7 @@ internal static class Program {
  static int FakeEngine(string[] args) {
   string Arg(string name)=>args[Array.IndexOf(args,name)+1];
   string bridge=Arg("--tas-dir"),output=Arg("--tas-output");long seq=0,count=0,target=1;bool live=args.Contains("--record"),run=false;
+  if(args.Contains("--tas-window"))File.WriteAllText(Path.Combine(Directory.GetParent(Directory.GetParent(bridge)!.FullName)!.FullName,"external-window.txt"),"yes");
   for(int tick=0;tick<15000;tick++) {
    try{var parts=File.ReadAllText(Path.Combine(bridge,"command.txt")).Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries);
     if(parts.Length==3 && long.Parse(parts[0])>seq){seq=long.Parse(parts[0]);switch(parts[1]){

@@ -36,8 +36,8 @@ public partial class MainWindow : Window {
         if(busy)return;
         var files=await StorageProvider.OpenFilePickerAsync(new(){Title="打开录制或 TAS 项目",AllowMultiple=false,FileTypeFilter=[new("Kinoko TAS"){Patterns=["*.krec","*.ktas"]}]});
         if(files.Count>0 && files[0].TryGetLocalPath() is string p) {
-            await OpenPathAsync(p);
-            if(sourcePath==Path.GetFullPath(p) && Project?.Source.Count>0)await Operate(()=>LaunchGame(false));
+            var previous=Project;await OpenPathAsync(p);
+            if(!ReferenceEquals(previous,Project) && sourcePath==Path.GetFullPath(p) && Project?.Source.Count>0)await Operate(()=>LaunchGame(false));
         }
     }
     public async Task OpenPathAsync(string path) {
