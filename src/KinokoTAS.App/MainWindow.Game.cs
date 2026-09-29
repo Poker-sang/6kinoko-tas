@@ -122,6 +122,7 @@ public partial class MainWindow {
             }
             var phase=state.Phase switch {"paused" or "live-paused"=>"已暂停","live"=>"正在录制","playing"=>"正在回放","finished"=>"已结束","failed"=>"运行失败",_=>"正在启动"};
             EngineLabel.Text=$"{phase} · 已完成 {state.Completed} 帧";
+            FrameLabel.Text=Math.Max(0,state.Completed-1).ToString("D6");FrameDetails.Text=$"时间 {Math.Max(0,state.Completed-1)/60.0:F2} 秒";
             if(operationError is not null){GameStatus.Text=operationError;return;}
             if(game.ExternalWindow){GameStatus.Text=$"{phase} · 在独立游戏窗口操作，F9 播放/暂停，F10 前进一帧。切换窗口不会自动暂停。";return;}
             GameStatus.Text=$"画面帧 {previewCount-1} / 逻辑帧 {state.Completed-1} · "+(game.IsLive?"接管输入：方向键、Z 跳跃/确认、X 攻击/加速/搬运、A 暂停、C 道具、F10 执行一帧。点击画面获取焦点。":"点击时间轴帧号或定位按钮查看。回退会从头重播，请等待。");

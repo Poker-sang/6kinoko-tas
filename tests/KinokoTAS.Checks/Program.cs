@@ -63,6 +63,7 @@ internal static class Program {
    Check(window.FindControl<ListBox>("BookmarkList")!.SelectedItem is FrameBookmark {Frame:0},"bookmark captures completed game frame");
    using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var stop=window.StopGameSessionAsync();while(!stop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}stop.GetAwaiter().GetResult();
+   window.Project.Undo();Check(window.Project.EditCount==0,"UI undo");
    var externalSession=new FileGameSession(fakeExe,Path.Combine(output,"external-session"),null,Path.Combine(output,"initial"),new string('a',64),true);
    var externalConnect=window.AttachGameSessionAsync(externalSession);
    while(!externalConnect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalConnect.GetAwaiter().GetResult();
@@ -71,8 +72,13 @@ internal static class Program {
    window.PauseOnDeactivateAsync().GetAwaiter().GetResult();
    Check(externalSession.ReadState()!.Sequence==before,"external window focus transfer does not pause recording");
    Check(File.Exists(Path.Combine(externalSession.SessionDirectory,"external-window.txt")),"external mode launch argument reaches child");
+   var liveMark=window.AddBookmarkAsync("重新挑战");while(!liveMark.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}liveMark.GetAwaiter().GetResult();
+   var marked=(FrameBookmark)window.FindControl<ListBox>("BookmarkList")!.SelectedItem!;
+   var advance=externalSession.StepAsync(new bool[19],default);while(!advance.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}advance.GetAwaiter().GetResult();
+   var goBack=window.ReturnSelectedBookmarkAsync();while(!goBack.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}goBack.GetAwaiter().GetResult();
+   Check(window.FindControl<NumericUpDown>("JumpFrame")!.Value==marked.Frame,"live bookmark return saves then reopens at selected frame");
+   Check(Replay.Load(externalSession.BranchPath).Count>marked.Frame+1,"return preserves input after bookmarked frame in original branch");
    var externalStop=window.StopGameSessionAsync();while(!externalStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalStop.GetAwaiter().GetResult();
-   window.Project.Undo();Check(window.Project.EditCount==0,"UI undo");
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
   }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
  }

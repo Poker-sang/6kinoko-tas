@@ -24,7 +24,8 @@ public partial class MainWindow {
         bookmarks.Add(mark);PersistBookmarks();BookmarkList.SelectedItem=mark;StatusLabel.Text=$"已添加书签：{mark}（已暂停）";
     }
     async void AddBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(()=>AddBookmarkAsync(BookmarkName.Text??""));
-    async void ReturnBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{
+    async void ReturnBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(ReturnSelectedBookmarkAsync);
+    public async Task ReturnSelectedBookmarkAsync(){
         if(BookmarkList.SelectedItem is not FrameBookmark mark)return;
         if(game?.IsLive==true){
             if(dirty && !await ConfirmDiscard())return;dirty=false;
@@ -34,7 +35,7 @@ public partial class MainWindow {
         using var cancel=new CancellationTokenSource();seeking=cancel;
         try{GameStatus.Text=$"正在重播返回：{mark.Name}";await game.SeekAsync(mark.Frame,cancel.Token);SelectFrame(mark.Frame);}
         finally{seeking=null;}
-    });
+    }
     void RemoveBookmarkClick(object? s,RoutedEventArgs e){try{if(BookmarkList.SelectedItem is FrameBookmark mark){bookmarks.Remove(mark);PersistBookmarks();}}catch(Exception ex){StatusLabel.Text=ex.Message;}}
     async void SaveRecordingClick(object? s,RoutedEventArgs e)=>await Operate(SaveRecordingAsync);
     async Task SaveRecordingAsync() {
