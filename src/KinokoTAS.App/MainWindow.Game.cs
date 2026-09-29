@@ -10,6 +10,7 @@ public partial class MainWindow {
     CancellationTokenSource? seeking;
     long previewCount=-1;
     nint orderedGameWindow;
+    int orderedProcess;
     string? gameExe;
     string? operationError;
     static string SettingsPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"KinokoTAS","settings.json");
@@ -115,6 +116,7 @@ public partial class MainWindow {
         if(game is null)return;
         try {
             if(game.ExternalWindow && OperatingSystem.IsWindows()) {
+                if(orderedProcess!=game.GameProcessId){orderedProcess=game.GameProcessId;orderedGameWindow=0;}
                 var handle=game.GameWindowHandle;
                 if(handle!=0 && handle!=orderedGameWindow && GameWindowOrder.Attach(handle,TryGetPlatformHandle()?.Handle??0))orderedGameWindow=handle;
             }
