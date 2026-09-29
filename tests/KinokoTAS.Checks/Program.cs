@@ -49,7 +49,8 @@ internal static class Program {
    var uiSession=new FileGameSession(fakeExe,Path.Combine(output,"ui-session"),replayPath,Path.Combine(output,"initial"),new string('a',64));
    var connect=window.AttachGameSessionAsync(uiSession);
    while(!connect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}connect.GetAwaiter().GetResult();
-   for(int i=0;i<20;i++){Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}
+   var previewDeadline=DateTime.UtcNow.AddSeconds(10);
+   while(window.FindControl<Image>("GameImage")!.Source is null && DateTime.UtcNow<previewDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}
    Check(window.FindControl<Image>("GameImage")!.Source is not null,"embedded preview arrives in UI");
    using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var stop=window.StopGameSessionAsync();while(!stop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}stop.GetAwaiter().GetResult();
