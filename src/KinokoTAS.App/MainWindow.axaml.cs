@@ -61,8 +61,7 @@ public partial class MainWindow : Window {
         UndoButton.IsEnabled=Project.CanUndo;RedoButton.IsEnabled=Project.CanRedo;
         int frame=Timeline.SelectedFrame;
         FrameLabel.Text=Project.Source.Count==0?"空录制":frame.ToString("D6");
-        if(Project.Source.Count>0)FrameDetails.Text=$"时间 {frame/60.0:F3} 秒\n原始 RNG 前 {Project.Source.RandomBefore(frame):X8}\n原始 RNG 后 {Project.Source.RandomAfter(frame):X8}\n原始检查值\n{Project.Source.Checkpoint(frame):X16}".Replace("\n","
-");
+        if(Project.Source.Count>0)FrameDetails.Text=$"时间 {frame/60.0:F3} 秒\n原始 RNG 前 {Project.Source.RandomBefore(frame):X8}\n原始 RNG 后 {Project.Source.RandomAfter(frame):X8}\n原始检查值\n{Project.Source.Checkpoint(frame):X16}";
         ValidationLabel.Text=Project.InvalidFrom is int first ? $"输入从第 {first} 帧起有变化。后续原始检查值不能验证编辑结果；需引擎重新执行。保存为 .ktas 项目。" : "原始录制校验完整。当前仅编辑输入；尚未连接游戏，不能在这里运行或逐帧推进游戏。";
         Timeline.InvalidateVisual();
     }
