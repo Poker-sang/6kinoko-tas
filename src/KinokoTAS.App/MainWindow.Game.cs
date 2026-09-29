@@ -9,6 +9,7 @@ public partial class MainWindow {
     bool gameCommand;
     CancellationTokenSource? seeking;
     long previewCount=-1;
+    nint orderedGameWindow;
     string? gameExe;
     string? operationError;
     static string SettingsPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"KinokoTAS","settings.json");
@@ -113,6 +114,10 @@ public partial class MainWindow {
     public void RefreshGameView() {
         if(game is null)return;
         try {
+            if(game.ExternalWindow && OperatingSystem.IsWindows()) {
+                var handle=game.GameWindowHandle;
+                if(handle!=0 && handle!=orderedGameWindow && GameWindowOrder.Attach(handle,TryGetPlatformHandle()?.Handle??0))orderedGameWindow=handle;
+            }
             game.Input(CurrentMask());var state=game.ReadState();if(state is null)return;
             var frame=game.ExternalWindow?null:game.ReadPreview();
             if(frame is not null && frame.Completed!=previewCount) {

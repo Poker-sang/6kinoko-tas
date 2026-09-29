@@ -5,7 +5,7 @@ public partial class MainWindow {
     readonly ObservableCollection<FrameBookmark> bookmarks=[];
     string? bookmarkFile,lastSaved;
     void InitializeLibrary(){BookmarkList.ItemsSource=bookmarks;UpdateGamePath();}
-    void UpdateGamePath(){GamePathLabel.Text=gameExe is null?"当前游戏：尚未选择（首次开始时选择一次）":"当前游戏："+gameExe;}
+    void UpdateGamePath(){GamePathLabel.Text=gameExe is null?"当前游戏：尚未选择（首次开始时选择一次）":"当前游戏："+gameExe;ToolTip.SetTip(GamePathLabel,gameExe);}
     void ShowSaved(string path){lastSaved=path;SavedPathLabel.Text="已保存："+path;OpenSavedButton.IsEnabled=true;}
     string BookmarkCache(Replay replay)=>Path.Combine(Path.GetDirectoryName(SettingsPath)!,"bookmarks",Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(replay.Bytes.Span))+".json");
     void LoadBookmarksFor(Replay replay,string path) {

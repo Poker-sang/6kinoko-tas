@@ -48,7 +48,7 @@ internal static class Program {
    while(!open.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}open.GetAwaiter().GetResult();Dispatcher.UIThread.RunJobs();
    Check(window.Project?.Source.Count==180,"UI loads source");
    var timeline=window.FindControl<TimelineControl>("Timeline")!;
-   var point=timeline.TranslatePoint(new Point(TimelineControl.FrameWidth+4*TimelineControl.CellWidth+20,TimelineControl.HeaderHeight+10),window)!.Value;
+   var point=timeline.TranslatePoint(new Point(TimelineControl.FrameWidth+5,TimelineControl.HeaderHeight+4*TimelineControl.RowHeight+5),window)!.Value;
    window.MouseDown(point,MouseButton.Left);window.MouseUp(point,MouseButton.Left);Dispatcher.UIThread.RunJobs();
    Check(window.Project!.IsEdited(0,4) && !window.Project.Down(0,4),"timeline click edits selected action");
    var uiSession=new FileGameSession(fakeExe,Path.Combine(output,"ui-session"),replayPath,Path.Combine(output,"initial"),new string('a',64));

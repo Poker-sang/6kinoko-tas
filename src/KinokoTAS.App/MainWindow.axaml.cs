@@ -74,7 +74,7 @@ public partial class MainWindow : Window {
     private void SelectFrame(int f) {
         if(Project is null || Project.Source.Count==0)return;
         f=Math.Clamp(f,0,Project.Source.Count-1);Timeline.SelectedFrame=f;JumpFrame.Value=f;RangeStart.Value=RangeEnd.Value=f;
-        int rows=Math.Max(1,(int)((Timeline.Bounds.Height-TimelineControl.HeaderHeight)/TimelineControl.RowHeight));
+        int rows=Math.Max(1,(int)((Timeline.Bounds.Width-TimelineControl.FrameWidth)/TimelineControl.CellWidth));
         if(f<Timeline.FirstFrame || f>=Timeline.FirstFrame+rows)FrameScroll.Value=f;
         Refresh();
     }
