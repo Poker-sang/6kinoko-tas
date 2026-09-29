@@ -192,7 +192,7 @@ public class ContentDialogHost : TemplatedControl
         _adornerLayer?.Children.Remove(this);
 
         _adornerLayer = layer;
-        AdornerLayer.SetAdornedElement(this, _host);
+        AdornerLayer.SetAdornedElement(this, (_host as ContentControl)?.Content as Control ?? _host);
         AdornerLayer.SetIsClipEnabled(this, false);
 
         if (!_adornerLayer.Children.Contains(this))
