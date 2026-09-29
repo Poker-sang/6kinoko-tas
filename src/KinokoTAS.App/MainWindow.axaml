@@ -10,7 +10,7 @@
   </Grid></Border>
   <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" Background="#2C3749" ResizeDirection="Rows"/>
   <Border Grid.Row="2" Background="#151D29" CornerRadius="8" BorderBrush="#2C3749" BorderThickness="1"><Grid RowDefinitions="Auto,*,Auto"><TextBlock Margin="16,12" Text="输入时间轴  ·  点击动作切换按下 / 松开，滚轮浏览" Foreground="#B4C4D8"/>
-   <Grid Grid.Row="1" ColumnDefinitions="*,18"><ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><local:TimelineControl x:Name="Timeline" Width="1315" MinHeight="300"/></ScrollViewer><ScrollBar x:Name="FrameScroll" Grid.Column="1" Orientation="Vertical" ValueChanged="ScrollChanged"/></Grid>
+   <Grid Grid.Row="1" ColumnDefinitions="*,18"><ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><local:TimelineControl x:Name="Timeline" Width="1315" VerticalAlignment="Stretch"/></ScrollViewer><ScrollBar x:Name="FrameScroll" Grid.Column="1" Orientation="Vertical" ValueChanged="ScrollChanged"/></Grid>
    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="12"><Button Content="上一帧" Click="PreviousClick"/><Button Content="下一帧" Click="NextClick"/><NumericUpDown x:Name="JumpFrame" Width="135" Minimum="0" Maximum="0" FormatString="0" Value="0"/><Button Content="定位" Click="JumpClick"/><TextBlock Text="未连接时移动光标；连接后定位画面" VerticalAlignment="Center" Foreground="#8C9FB8"/></StackPanel>
   </Grid></Border>
   <ScrollViewer Grid.Column="1" Grid.RowSpan="3"><StackPanel Spacing="14">
