@@ -1,3 +1,5 @@
+> 当前版本与操作请见 [命令栏与书签说明](commandbar-bookmarks.md)。
+
 # 简化流程与独立游戏窗口
 
 编辑器：artifacts/windows-editor-06/KinokoTAS.App.exe（源码 04324e8）。
