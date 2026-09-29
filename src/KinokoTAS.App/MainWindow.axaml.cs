@@ -35,7 +35,10 @@ public partial class MainWindow : Window {
     private async Task OpenPicker() {
         if(busy)return;
         var files=await StorageProvider.OpenFilePickerAsync(new(){Title="打开录制或 TAS 项目",AllowMultiple=false,FileTypeFilter=[new("Kinoko TAS"){Patterns=["*.krec","*.ktas"]}]});
-        if(files.Count>0 && files[0].TryGetLocalPath() is string p)await OpenPathAsync(p);
+        if(files.Count>0 && files[0].TryGetLocalPath() is string p) {
+            await OpenPathAsync(p);
+            if(sourcePath==Path.GetFullPath(p) && Project?.Source.Count>0)await Operate(()=>LaunchGame(false));
+        }
     }
     public async Task OpenPathAsync(string path) {
         if(busy || (dirty && !await ConfirmDiscard()))return;
@@ -90,7 +93,7 @@ public partial class MainWindow : Window {
     }
     private void EditRange(bool down) {
         if(Project is null || busy)return;
-        try{Project.SetRange((int)(RangeStart.Value??0),(int)(RangeEnd.Value??0),ActionPicker.SelectedIndex,down);StatusLabel.Text="区间已更新，可撤销。";}catch(Exception){StatusLabel.Text="请确认起止帧顺序和动作选择。";}
+        try{Project.SetRange((int)(RangeStart.Value??0),(int)(RangeEnd.Value??0),ActionPicker.SelectedIndex,down);StatusLabel.Text="区间已更新；仅保存到编辑项目，尚不会改变游戏回放。";}catch(Exception){StatusLabel.Text="请确认起止帧顺序和动作选择。";}
     }
     private async void OpenClick(object? s,RoutedEventArgs e)=>await OpenPicker();
     private async void SaveClick(object? s,RoutedEventArgs e)=>await SaveProject();

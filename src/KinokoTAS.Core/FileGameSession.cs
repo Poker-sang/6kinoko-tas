@@ -19,9 +19,11 @@ public sealed class FileGameSession : IGameSession {
     public string BranchPath {get;private set;}="";
     public string SessionDirectory=>root;
     public bool IsLive {get;private set;}
+    public bool ExternalWindow {get;}
     public string EngineHash {get;}
     public static string HashFile(string path){using var s=File.OpenRead(path);return Convert.ToHexString(SHA256.HashData(s)).ToLowerInvariant();}
-    public FileGameSession(string exe,string sessionRoot,string? replayPath,string initialDirectory,string replayIdentity) {
+    public FileGameSession(string exe,string sessionRoot,string? replayPath,string initialDirectory,string replayIdentity,bool externalWindow=false) {
+        ExternalWindow=externalWindow;
         executable=Path.GetFullPath(exe);root=Path.GetFullPath(sessionRoot);identity=replayIdentity;
         if(Directory.Exists(root))throw new IOException("会话目录已存在。");
         foreach(var name in new[]{"6kinoko_a.dat","6kinoko_b.dat","6kinoko_c.dat"})if(!File.Exists(Path.Combine(Path.GetDirectoryName(executable)!,name)))throw new IOException("游戏程序旁缺少 "+name);
@@ -44,6 +46,7 @@ public sealed class FileGameSession : IGameSession {
         BranchPath=Path.Combine(run,"branch.krec");sequence=0;IsLive=source is null;
         var start=new ProcessStartInfo(executable){UseShellExecute=false,WorkingDirectory=Path.GetDirectoryName(executable)!};
         foreach(var arg in new[]{"--save-dir",saves,source is null?"--record":"--replay",source??BranchPath,"--replay-status",Path.Combine(run,"replay-status.txt"),"--replay-identity",identity,"--tas-dir",bridge,"--tas-output",BranchPath})start.ArgumentList.Add(arg);
+        if(ExternalWindow)start.ArgumentList.Add("--tas-window");
         start.Environment.Remove("KINOKO_REPLAY_MODE");start.Environment["KINOKO_TRACE"]="0";
         process=Process.Start(start)??throw new IOException("游戏进程启动失败。");
         try {await WaitAsync(s=>s.Completed>=1 && s.Phase.EndsWith("paused"),TimeSpan.FromSeconds(30),ct);}

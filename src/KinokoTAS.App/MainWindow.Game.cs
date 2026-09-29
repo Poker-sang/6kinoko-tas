@@ -10,7 +10,12 @@ public partial class MainWindow {
     CancellationTokenSource? seeking;
     long previewCount=-1;
     string? gameExe;
+    string? operationError;
+    static string SettingsPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"KinokoTAS","settings.json");
+    void SaveSettings(){Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);File.WriteAllText(SettingsPath,JsonSerializer.Serialize(new{GameExe=gameExe,Embedded=EmbeddedOption.IsChecked==true}));}
+    async void ChangeGameClick(object? sender,RoutedEventArgs e)=>await Operate(async()=>{gameExe=null;await PickGame();});
     void InitializeGamePanel() {
+        try {if(File.Exists(SettingsPath)){using var settings=JsonDocument.Parse(File.ReadAllText(SettingsPath));gameExe=settings.RootElement.GetProperty("GameExe").GetString();EmbeddedOption.IsChecked=settings.RootElement.GetProperty("Embedded").GetBoolean();}}catch{gameExe=null;}
         gameTimer.Tick+=(_,_)=>RefreshGameView();gameTimer.Start();
         Deactivated+=async (_,_)=>await PauseOnDeactivateAsync();
         Closed+=(_,_)=>{gameTimer.Stop();bitmap?.Dispose();};
@@ -18,17 +23,18 @@ public partial class MainWindow {
     public async Task PauseOnDeactivateAsync() {
         gameKeys.Clear();var active=game;
         if(active is null)return;
+        if(active.ExternalWindow){active.Input(0);return;}
         active.Input(0);try{await active.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}
     }
     async Task Operate(Func<Task> action) {
         if(gameCommand)return;gameCommand=true;
-        try{await action();}catch(Exception ex){GameStatus.Text="操作失败："+ex.Message;}
+        try{operationError=null;await action();}catch(Exception ex){operationError="操作失败："+ex.Message;GameStatus.Text=operationError;}
         finally{gameCommand=false;}
     }
     async Task<string?> PickGame() {
         if(gameExe is not null && File.Exists(gameExe))return gameExe;
         var paths=await StorageProvider.OpenFilePickerAsync(new(){Title="选择游戏程序 kinoko_modern_gpu.exe（不是 .ktas 录制项目）",AllowMultiple=false});
-        if(paths.Count==0)return null;gameExe=paths[0].TryGetLocalPath();return gameExe;
+        if(paths.Count==0)return null;gameExe=paths[0].TryGetLocalPath();SaveSettings();return gameExe;
     }
     async Task<string?> InitialDirectory(string? replay) {
         if(replay is not null) {
@@ -69,7 +75,7 @@ public partial class MainWindow {
         var no=new Button{Content="取消"};no.Click+=(_,_)=>dialog.Close(false);panel.Children.Add(no);dialog.Content=panel;return await dialog.ShowDialog<bool>(this);
     }
     async Task LaunchGame(bool recording) {
-        var exe=await PickGame();if(exe is null)return;
+        var exe=await PickGame();if(exe is null)return;SaveSettings();
         string? replay=null;string initial;string identity;
         var sessions=Path.Combine(AppContext.BaseDirectory,"sessions");Directory.CreateDirectory(sessions);
         if(recording) {
@@ -84,7 +90,7 @@ public partial class MainWindow {
             if(!await ConfirmReplayEngine())return;
             replay=Path.Combine(sessions,"source-"+Guid.NewGuid().ToString("N")+".krec");Project.ExportSource(replay);identity=Project.Source.Identity;
         }
-        var session=new FileGameSession(exe,Path.Combine(sessions,"session-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")[..6]),replay,initial,identity);
+        var session=new FileGameSession(exe,Path.Combine(sessions,"session-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")[..6]),replay,initial,identity,EmbeddedOption.IsChecked!=true);
         await AttachGameSessionAsync(session);
     }
     public async Task AttachGameSessionAsync(FileGameSession session) {
@@ -92,7 +98,7 @@ public partial class MainWindow {
         GameStatus.Text="启动引擎，等待首帧…";previewCount=-1;gameKeys.Clear();
         try {await session.StartAsync();}
         catch {await session.DisposeAsync();EngineLabel.Text="启动失败";throw;}
-        game=session;EngineLabel.Text=session.IsLive?"新录制 · 已暂停":"回放 · 已暂停";
+        game=session;GameImage.IsVisible=!session.ExternalWindow;ExternalHint.IsVisible=session.ExternalWindow;EmbeddedOption.IsEnabled=false;EngineLabel.Text=session.IsLive?"新录制 · 已暂停":"回放 · 已暂停";
     }
     uint CurrentMask() {
         if(!GamePanel.IsFocused)return 0;uint m=0;
@@ -107,13 +113,16 @@ public partial class MainWindow {
         if(game is null)return;
         try {
             game.Input(CurrentMask());var state=game.ReadState();if(state is null)return;
-            var frame=game.ReadPreview();
+            var frame=game.ExternalWindow?null:game.ReadPreview();
             if(frame is not null && frame.Completed!=previewCount) {
                 if(bitmap is null||bitmap.PixelSize.Width!=frame.Width||bitmap.PixelSize.Height!=frame.Height){bitmap?.Dispose();bitmap=new(new(frame.Width,frame.Height),new(96,96),PixelFormat.Rgba8888,AlphaFormat.Opaque);GameImage.Source=bitmap;}
                 using(var buffer=bitmap.Lock())for(int row=0;row<frame.Height;row++)Marshal.Copy(frame.Pixels,row*frame.Width*4,buffer.Address+row*buffer.RowBytes,frame.Width*4);
                 previewCount=frame.Completed;GameImage.InvalidateVisual();
             }
-            EngineLabel.Text=$"{state.Phase} · 已完成 {state.Completed} 帧";
+            var phase=state.Phase switch {"paused" or "live-paused"=>"已暂停","live"=>"正在录制","playing"=>"正在回放","finished"=>"已结束","failed"=>"运行失败",_=>"正在启动"};
+            EngineLabel.Text=$"{phase} · 已完成 {state.Completed} 帧";
+            if(operationError is not null){GameStatus.Text=operationError;return;}
+            if(game.ExternalWindow){GameStatus.Text=$"{phase} · 在独立游戏窗口操作，F9 播放/暂停，F10 前进一帧。切换窗口不会自动暂停。";return;}
             GameStatus.Text=$"画面帧 {previewCount-1} / 逻辑帧 {state.Completed-1} · "+(game.IsLive?"接管输入：方向键、Z 跳跃/确认、X 攻击/加速/搬运、A 暂停、C 道具、F10 执行一帧。点击画面获取焦点。":"点击时间轴帧号或定位按钮查看。回退会从头重播，请等待。");
         }catch(Exception ex){EngineLabel.Text="引擎错误";GameStatus.Text=ex.Message;}
     }
@@ -123,11 +132,11 @@ public partial class MainWindow {
     });}
     public Task StopGameSessionAsync()=>EndGame(false);
     async Task EndGame(bool load) {
-        if(game is null)return;var old=game;game=null;gameKeys.Clear();
-        try {string branch=await old.StopAsync();EngineLabel.Text="分支已保存";GameStatus.Text=branch;if(load)await OpenPathAsync(branch);}
+        if(game is null)return;var old=game;game=null;gameKeys.Clear();EmbeddedOption.IsEnabled=true;
+        try {string branch=await old.StopAsync();EngineLabel.Text="录制已保存";GameStatus.Text=branch;if(load)await OpenPathAsync(branch);}
         finally {await old.DisposeAsync();}
     }
-    async void ConnectGameClick(object? s,RoutedEventArgs e)=>await Operate(()=>LaunchGame(false));
+    
     async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(()=>LaunchGame(true));
     async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(1,default);GamePanel.Focus();});
     async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}
