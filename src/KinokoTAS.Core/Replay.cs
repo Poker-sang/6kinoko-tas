@@ -23,9 +23,9 @@ public sealed class Replay {
             if(count>=MaxFrames || input.Length-at<RecordSize) throw new InvalidDataException("录制未完整结束。");
             var record=b.Slice(at+1,199);
             if(U64(record)!=(ulong)count || U64(b[(at+200)..])!=Hash(record)) throw new InvalidDataException($"第 {count} 帧序号或校验错误。");
-            // 19 logical release flags and 6 legacy release flags.
+            // 19 logical release flags and 4 legacy release flags.
             foreach(byte flag in record.Slice(8+76,19)) if(flag>1) throw new InvalidDataException("动作释放标记无效。");
-            foreach(byte flag in record.Slice(8+95+32,6)) if(flag>1) throw new InvalidDataException("兼容输入释放标记无效。");
+            foreach(byte flag in record.Slice(8+95+32,4)) if(flag>1) throw new InvalidDataException("兼容输入释放标记无效。");
             chain=Hash(record,chain);count++;at+=RecordSize;
         }
         if(input.Length-at!=17 || b[at]!=0 || U64(b[(at+1)..])!=(ulong)count || U64(b[(at+9)..])!=chain) throw new InvalidDataException("录制尾部不完整、校验错误或有多余数据。");

@@ -26,7 +26,7 @@ public sealed class TimelineControl : Control {
             for(int a=0;a<Replay.ActionCount;a++) {
                 double x=FrameWidth+a*CellWidth;
                 if(Project.Down(frame,a)) {
-                    c.FillRectangle(Active,new Rect(x+2,y+2,CellWidth-4,RowHeight-4),3);
+                    c.DrawRectangle(Active,null,new Rect(x+2,y+2,CellWidth-4,RowHeight-4),3,3);
                     Text(c,"●",new(x+25,y+4),Brushes.White);
                 }
                 if(Project.IsEdited(frame,a))c.FillRectangle(Edited,new Rect(x+3,y+3,4,4));
