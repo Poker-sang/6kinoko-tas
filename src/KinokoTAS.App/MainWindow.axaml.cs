@@ -96,8 +96,8 @@ public partial class MainWindow : Window {
     private void RedoClick(object? s,RoutedEventArgs e)=>Project?.Redo();
     private void HoldClick(object? s,RoutedEventArgs e)=>EditRange(true);
     private void ReleaseClick(object? s,RoutedEventArgs e)=>EditRange(false);
-    private async void PreviousClick(object? s,RoutedEventArgs e){SelectFrame(Timeline.SelectedFrame-1);await SeekGame(Timeline.SelectedFrame);}
-    private async void NextClick(object? s,RoutedEventArgs e){SelectFrame(Timeline.SelectedFrame+1);await SeekGame(Timeline.SelectedFrame);}
-    private async void JumpClick(object? s,RoutedEventArgs e){SelectFrame((int)(JumpFrame.Value??0));await SeekGame(Timeline.SelectedFrame);}
+    private async void PreviousClick(object? s,RoutedEventArgs e){FollowLatest.IsChecked=false;SelectFrame(Timeline.SelectedFrame-1);await SeekGame(Timeline.SelectedFrame);}
+    private async void NextClick(object? s,RoutedEventArgs e){FollowLatest.IsChecked=false;SelectFrame(Timeline.SelectedFrame+1);await SeekGame(Timeline.SelectedFrame);}
+    private async void JumpClick(object? s,RoutedEventArgs e){FollowLatest.IsChecked=false;SelectFrame((int)(JumpFrame.Value??0));await SeekGame(Timeline.SelectedFrame);}
     private void ScrollChanged(object? s,Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e) {if(Timeline is not null){Timeline.FirstFrame=(int)e.NewValue;Timeline.InvalidateVisual();}}
 }

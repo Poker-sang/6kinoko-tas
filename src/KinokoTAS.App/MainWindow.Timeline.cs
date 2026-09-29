@@ -27,7 +27,7 @@ public partial class MainWindow {
     }
     public async Task ToggleRecordingAsync() {
         if(game is null)throw new InvalidOperationException("先新建或打开录制。");
-        if(game.IsLive){await game.SwitchToPlaybackAsync();UpdatePlaybackProject();}
+        if(game.IsLive){using var cancel=new CancellationTokenSource();seeking=cancel;try{await game.SwitchToPlaybackAsync(cancel.Token);UpdatePlaybackProject();}finally{seeking=null;}}
         else {
             if(dirty && Project is not null)Project.Save(Path.Combine(game.SessionDirectory,"draft-"+Guid.NewGuid().ToString("N")+".ktas"));
             await game.TakeoverAsync();var boundary=game.ReadState()!.Completed;

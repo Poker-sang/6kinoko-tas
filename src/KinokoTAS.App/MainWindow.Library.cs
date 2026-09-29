@@ -4,7 +4,7 @@ namespace KinokoTAS.App;
 public partial class MainWindow {
     readonly ObservableCollection<FrameBookmark> bookmarks=[];
     string? bookmarkFile,lastSaved;
-    void InitializeLibrary(){BookmarkList.ItemsSource=bookmarks;Timeline.Bookmarks=bookmarks;bookmarks.CollectionChanged+=(_,_)=>Timeline.InvalidateVisual();FrameScroll.PointerPressed+=(_,_)=>{if(!followScroll)FollowLatest.IsChecked=false;};UpdateGamePath();}
+    void InitializeLibrary(){BookmarkList.ItemsSource=bookmarks;Timeline.Bookmarks=bookmarks;bookmarks.CollectionChanged+=(_,_)=>Timeline.InvalidateVisual();FrameScroll.AddHandler(Avalonia.Input.InputElement.PointerPressedEvent,(_,_)=>{if(!followScroll)FollowLatest.IsChecked=false;},RoutingStrategies.Tunnel,true);UpdateGamePath();}
     void UpdateGamePath(){GamePathLabel.Text=gameExe is null?"当前游戏：尚未选择（首次开始时选择一次）":"当前游戏："+gameExe;ToolTip.SetTip(GamePathLabel,gameExe);}
     void ShowSaved(string path){lastSaved=path;SavedPathLabel.Text="已保存："+path;OpenSavedButton.IsEnabled=true;}
     string BookmarkCache(Replay replay)=>Path.Combine(Path.GetDirectoryName(SettingsPath)!,"bookmarks",Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(replay.Bytes.Span))+".json");

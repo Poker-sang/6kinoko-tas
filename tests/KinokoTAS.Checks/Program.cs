@@ -120,6 +120,8 @@ internal static class Program {
    var newFrame=externalSession.StepAsync(new bool[19],default);while(!newFrame.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}newFrame.GetAwaiter().GetResult();
    window.RefreshGameView();
    Check(window.FindControl<TimelineControl>("Timeline")!.FrameCount==marked.Frame+2,"live timeline replaces old tail with new completed frames");
+   var all=window.ReplayAllAsync();while(!all.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}all.GetAwaiter().GetResult();
+   Check(!externalSession.IsLive,"replay all seals recording and starts playback without manual reopen");
    var externalStop=window.StopGameSessionAsync();while(!externalStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalStop.GetAwaiter().GetResult();
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
   }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
