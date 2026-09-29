@@ -44,7 +44,7 @@ internal static class Program {
    var point=timeline.TranslatePoint(new Point(TimelineControl.FrameWidth+4*TimelineControl.CellWidth+20,TimelineControl.HeaderHeight+10),window)!.Value;
    window.MouseDown(point,MouseButton.Left);window.MouseUp(point,MouseButton.Left);Dispatcher.UIThread.RunJobs();
    Check(window.Project!.IsEdited(0,4) && !window.Project.Down(0,4),"timeline click edits selected action");
-   using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"));
+   using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    window.Project.Undo();Check(window.Project.EditCount==0,"UI undo");
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
   }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
