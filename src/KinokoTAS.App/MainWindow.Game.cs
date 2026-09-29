@@ -30,7 +30,7 @@ public partial class MainWindow {
     }
     async Task Operate(Func<Task> action) {
         if(gameCommand)return;gameCommand=true;
-        try{operationError=null;await action();}catch(Exception ex){operationError="操作失败："+ex.Message;GameStatus.Text=operationError;}
+        try{operationError=null;await action();}catch(OperationCanceledException){operationError="操作已取消，原录制与草稿保留。";GameStatus.Text=operationError;}catch(Exception ex){operationError="操作失败："+ex.Message;GameStatus.Text=operationError;}
         finally{gameCommand=false;}
     }
     async Task<string?> PickGame() {
@@ -95,7 +95,7 @@ public partial class MainWindow {
         await AttachGameSessionAsync(session);
     }
     public async Task AttachGameSessionAsync(FileGameSession session) {
-        await EndGame(false);
+        await EndGame(false);recoveries.Clear();
         GameStatus.Text="启动引擎，等待首帧…";previewCount=-1;gameKeys.Clear();
         try {await session.StartAsync();}
         catch {await session.DisposeAsync();EngineLabel.Text="启动失败";throw;}
@@ -113,6 +113,9 @@ public partial class MainWindow {
         Set(gameKeys.Contains(Key.Space),4);Set(gameKeys.Contains(Key.Enter),11);Set(gameKeys.Contains(Key.Escape),13);return m;
     }
     public void RefreshGameView() {
+        CancelOperationButton.IsEnabled=seeking is not null;
+        ApplyEditsButton.IsEnabled=!gameCommand && !busy && Project?.InvalidFrom is not null && game?.IsLive!=true;
+        RestoreOverwriteButton.IsEnabled=!gameCommand && !busy && recoveries.Count>0;
         RestartGameButton.IsEnabled=game is not null?!game.IsRunning:Project is not null;
         if(game is null)return;
         if(!game.IsRunning){EngineLabel.Text="游戏已关闭";GameStatus.Text=operationError??"点击“重新启动游戏”恢复当前录制。";return;}
@@ -133,13 +136,14 @@ public partial class MainWindow {
             var phase=state.Phase switch {"paused" or "live-paused"=>"已暂停","live"=>"正在录制","playing"=>"正在回放","finished"=>"已结束","failed"=>"运行失败",_=>"正在启动"};
             EngineLabel.Text=$"{phase} · 已完成 {state.Completed} 帧";
             FrameLabel.Text=Math.Max(0,state.Completed-1).ToString("D6");FrameDetails.Text=$"时间 {Math.Max(0,state.Completed-1)/60.0:F2} 秒";
+            if(seeking is not null){GameStatus.Text=operationProgress??$"正在定位：{state.Completed:N0} / {seekTarget:N0} 帧（Esc 取消）";return;}
             if(operationError is not null){GameStatus.Text=operationError;return;}
             if(game.ExternalWindow){GameStatus.Text=$"{phase} · 在独立游戏窗口操作，F9 播放/暂停，F10 前进一帧。切换窗口不会自动暂停。";return;}
-            GameStatus.Text=$"画面帧 {previewCount-1} / 逻辑帧 {state.Completed-1} · "+(game.IsLive?"接管输入：方向键、Z 跳跃/确认、X 攻击/加速/搬运、A 暂停、C 道具、F10 执行一帧。点击画面获取焦点。":"点击时间轴帧号或定位按钮查看。回退会从头重播，请等待。");
+            GameStatus.Text=$"画面帧 {previewCount-1} / 逻辑帧 {state.Completed-1} · "+(game.IsLive?"接管输入：方向键、Z 跳跃/确认、X 攻击/加速/搬运、A 暂停、C 道具、F10 执行一帧。点击画面获取焦点。":"双击时间轴帧号或使用定位按钮查看。回退会从头重播，请等待。");
         }catch(Exception ex){EngineLabel.Text="引擎错误";GameStatus.Text=ex.Message;}
     }
     async Task SeekGame(int frame) {if(game is not null)await Operate(async()=>{
-        using var token=new CancellationTokenSource();seeking=token;
+        using var token=new CancellationTokenSource();seeking=token;seekTarget=frame+1;
         try{GameStatus.Text="正在重播定位…";await game.SeekAsync(frame,token.Token);UpdatePlaybackProject();RefreshGameView();}finally{seeking=null;}
     });}
     public Task StopGameSessionAsync()=>EndGame(false);
@@ -162,7 +166,7 @@ public partial class MainWindow {
     async void TakeoverClick(object? s,RoutedEventArgs e)=>await Operate(ToggleRecordingAsync);
     
     void GamePointerPressed(object? s,PointerPressedEventArgs e){GamePanel.Focus();e.Handled=true;}
-    void GameKeyDown(object? s,KeyEventArgs e){if(e.Key==Key.F10){StepGameClick(s,e);e.Handled=true;return;}gameKeys.Add(e.Key);e.Handled=true;}
+    void GameKeyDown(object? s,KeyEventArgs e){if(e.Handled)return;gameKeys.Add(e.Key);e.Handled=true;}
     void GameKeyUp(object? s,KeyEventArgs e){gameKeys.Remove(e.Key);e.Handled=true;}
     void GameLostFocus(object? s,RoutedEventArgs e){gameKeys.Clear();game?.Input(0);}
 }

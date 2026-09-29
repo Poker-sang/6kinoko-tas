@@ -4,17 +4,19 @@ using KinokoTAS.Core; using KinokoTAS.App;
 internal static class Program {
  static void Check(bool condition,string name){if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
  static void Reject(byte[] b,string name){try{Replay.Parse(b);}catch(InvalidDataException){Console.WriteLine("PASS "+name);return;}throw new Exception(name);}
- static byte[] Fixture(int count=180) {
+ static byte[] Fixture(int count=180,uint[]? masks=null) {
   using var s=new MemoryStream();using var w=new BinaryWriter(s);
   w.Write("KINORPL1"u8);w.Write(1u);w.Write(19u);w.Write(System.Text.Encoding.ASCII.GetBytes(new string('a',64)));
   ulong chain=14695981039346656037;
+  int[] held=new int[19];
   for(int f=0;f<count;f++) {
    using var frame=new MemoryStream();using var fw=new BinaryWriter(frame);fw.Write((ulong)f);
-   for(int a=0;a<19;a++)fw.Write(a==4 && f<60?f+1:a==1?f+1:0);
-   for(int a=0;a<19;a++)fw.Write((byte)(a==4 && f==60?1:0));
+   var previous=(int[])held.Clone();
+   for(int a=0;a<19;a++){bool down=masks is null?(a==4&&f<60||a==1):(masks[f]&(1u<<a))!=0;held[a]=down?held[a]+1:0;fw.Write(held[a]);}
+   for(int a=0;a<19;a++)fw.Write((byte)(previous[a]>0&&held[a]==0?1:0));
    fw.Write(0);fw.Write(0);for(int a=0;a<6;a++)fw.Write(0);
    fw.Write(new byte[4]);for(int a=0;a<10;a++)fw.Write(a==0?258:0);
-   fw.Write((uint)(1000+f*1000/60));fw.Write(42u);fw.Write(42u);fw.Write((ulong)f*17);
+   fw.Write((uint)(1000+f*1000/60));fw.Write(42u);fw.Write(42u);fw.Write((ulong)f*17+(masks is null?0:masks[f]));
    var b=frame.ToArray();if(b.Length!=199)throw new Exception("fixture size");
    w.Write((byte)1);w.Write(b);w.Write(Replay.Hash(b));chain=Replay.Hash(b,chain);
   }
@@ -99,6 +101,19 @@ internal static class Program {
    using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var stop=window.StopGameSessionAsync();while(!stop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}stop.GetAwaiter().GetResult();
    window.Project.Undo();Check(window.Project.EditCount==0,"UI undo");
+   var editingSession=new FileGameSession(fakeExe,Path.Combine(output,"ui-edit-session"),replayPath,Path.Combine(output,"initial"),new string('a',64),true);
+   var editConnect=window.AttachGameSessionAsync(editingSession);while(!editConnect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}editConnect.GetAwaiter().GetResult();
+   window.Project.SetRange(0,0,4,false);
+   var apply=window.ApplyEditsAsync();while(!apply.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}apply.GetAwaiter().GetResult();
+   Check(window.Project.EditCount==0 && window.Project.Source.Held(0,4)==0,"UI adopts verified edited recording");
+   var restore=window.RestoreOverwriteAsync();while(!restore.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}restore.GetAwaiter().GetResult();
+   Check(window.Project.Source.Held(0,4)==1 && window.Project.EditCount==1,"restore recovers original and retained draft");
+   window.Project.Undo();
+   var beforeCover=window.Project.Source.Bytes.ToArray();
+   var cover=window.ToggleRecordingAsync();while(!cover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}cover.GetAwaiter().GetResult();
+   var undoCover=window.RestoreOverwriteAsync();while(!undoCover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}undoCover.GetAwaiter().GetResult();
+   Check(window.Project.Source.Bytes.Span.SequenceEqual(beforeCover),"record takeover undo restores whole source tail");
+   var editingStop=window.StopGameSessionAsync();while(!editingStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}editingStop.GetAwaiter().GetResult();
    window.Hide();window=new MainWindow();window.Show();
    var externalSession=new FileGameSession(fakeExe,Path.Combine(output,"external-session"),null,Path.Combine(output,"initial"),new string('a',64),true);
    var externalConnect=window.AttachGameSessionAsync(externalSession);
@@ -131,21 +146,33 @@ internal static class Program {
   string Arg(string name)=>args[Array.IndexOf(args,name)+1];
   string bridge=Arg("--tas-dir"),output=Arg("--tas-output");long seq=0,count=0,target=1;bool live=args.Contains("--record"),run=false;
   if(args.Contains("--tas-window"))File.WriteAllText(Path.Combine(Directory.GetParent(Directory.GetParent(bridge)!.FullName)!.FullName,"external-window.txt"),"yes");
-  long total=live?0:Replay.Load(Arg("--replay")).Count;
+  var source=live?null:Replay.Load(Arg("--replay"));long total=source?.Count??0;
+  uint[]? plan=null;int first=-1;
+  var planPath=Path.Combine(bridge,"edit.bin");
+  if(File.Exists(planPath)){using var reader=new BinaryReader(File.OpenRead(planPath));reader.ReadBytes(8);int length=reader.ReadInt32();first=reader.ReadInt32();plan=new uint[length];for(int i=0;i<length;i++)plan[i]=reader.ReadUInt32();}
+  File.WriteAllText(Path.Combine(bridge,"capabilities.txt"),"KTAS1 edits-v1");
+  var recorded=new List<uint>();
+  byte[] Current()=>Fixture((int)count,recorded.ToArray());
   for(int tick=0;tick<15000;tick++) {
    try{var parts=File.ReadAllText(Path.Combine(bridge,"command.txt")).Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries);
     if(parts.Length==3 && long.Parse(parts[0])>seq){seq=long.Parse(parts[0]);switch(parts[1]){
-     case "stop":File.WriteAllBytes(output,Fixture((int)count));return 0;
+     case "stop":File.WriteAllBytes(output,Current());return 0;
      case "pause":run=false;target=count;break;
      case "target":target=long.Parse(parts[2]);run=false;break;
      case "run":run=true;break;
      case "takeover":live=true;run=false;target=count;break;
     }}
    }catch(IOException){}
-   if((run||count<target)&&(live||count<total))count++;
+   if((run||count<target)&&(live||count<total)){
+    if(plan is not null&&count>=first)live=true;
+    uint value=0;if(plan is not null)value=plan[count];
+    else if(!live&&source is not null){for(int a=0;a<19;a++)if(source.Held((int)count,a)>0)value|=1u<<a;}
+    else {try{var input=File.ReadAllText(Path.Combine(bridge,"input.txt")).Split(' ');value=uint.Parse(input[1]);}catch(IOException){}}
+    recorded.Add(value);count++;
+   }
    if(!live && count>=total){run=false;target=count;}
    string phase=(run||count<target)?(live?"live":"playing"):(live?"live-paused":"paused");
-   try {AtomicFile.Write(output,s=>{var bytes=Fixture((int)count);s.Write(bytes.AsSpan(0,bytes.Length-17));});
+   try {AtomicFile.Write(output,s=>{var bytes=Current();s.Write(bytes.AsSpan(0,bytes.Length-17));});
    AtomicFile.Write(Path.Combine(bridge,"state.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"KTAS1 {seq} {count} {total} {phase}\n");});
    AtomicFile.Write(Path.Combine(bridge,"image.rgba"),s=>{using var w=new BinaryWriter(s,System.Text.Encoding.UTF8,true);w.Write("KTASIMG1"u8);w.Write(count);w.Write(1);w.Write(1);w.Write(new byte[]{10,20,30,255});});}catch(IOException){}catch(UnauthorizedAccessException){}
    Thread.Sleep(2);
@@ -170,6 +197,27 @@ internal static class Program {
   await session.RestartAsync();Check(session.IsRunning && session.ReadState()?.Completed==4 && !session.IsLive,"restart restores closed live recording at last completed frame");
   string branch=await session.StopAsync();Check(Replay.Load(branch).Count==4,"branch finalized before load");
   Check(File.ReadAllText(Path.Combine(initial,"marisaA.dat"))=="original","initial save untouched");
+  await using var editSession=new FileGameSession(exe,Path.Combine(output,"edit-session"),replay,initial,new string('a',64));
+  await editSession.StartAsync();
+  var edited=new TasProject(Replay.Load(replay),"edit.krec");edited.SetRange(0,0,4,false);edited.SetRange(5,9,1,false);
+  await using var result=await editSession.ResimulateAsync(edited);
+  var generated=Replay.Load(result.PlaybackSource!);
+  Check(generated.Count==180 && generated.Held(0,4)==0 && generated.Held(1,4)==1 && generated.Released(5,1) && generated.Held(10,1)==1,"edited input resimulation includes frame zero, releases and held duration");
+  Check(generated.Checkpoint(0)!=edited.Source.Checkpoint(0),"edited checksums are regenerated by engine");
+  Check(result.ReadState()?.Completed==180 && result.ReadState()!.Phase=="paused","generated recording replay verified through last frame");
+  Check(Replay.Load(replay).Held(0,4)==1 && editSession.IsRunning && edited.EditCount==6,"original session and edit intentions survive transaction");
+  using var cancelled=new CancellationTokenSource();
+  try{await editSession.ResimulateAsync(edited,new TestProgress(p=>{if(p.Completed>=3)cancelled.Cancel();}),cancelled.Token);throw new Exception("Cancellation ignored");}
+  catch(OperationCanceledException){}
+  Check(editSession.IsRunning && editSession.ReadState()!.Phase=="paused" && edited.EditCount==6,"cancelled resimulation keeps old recording and draft");
+  using var seekCancel=new CancellationTokenSource();
+  void CancelSeek(SessionState state){if(state.Completed>=3)seekCancel.Cancel();}
+  editSession.Progress+=CancelSeek;
+  try{await editSession.SeekAsync(170,seekCancel.Token);throw new Exception("Seek cancellation ignored");}catch(OperationCanceledException){}
+  editSession.Progress-=CancelSeek;
+  Check(editSession.ReadState()!.Phase=="paused","cancelled seek pauses engine at acknowledged boundary");
   return exe;
  }
+ sealed class TestProgress(Action<SimulationProgress> callback):IProgress<SimulationProgress>{public void Report(SimulationProgress value)=>callback(value);}
+
 }

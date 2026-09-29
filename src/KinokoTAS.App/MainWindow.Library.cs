@@ -33,13 +33,14 @@ public partial class MainWindow {
     public async Task ReturnSelectedBookmarkAsync(){
         if(BookmarkList.SelectedItem is not FrameBookmark mark)return;
         if(game is null){await LaunchGame(false);if(game is null)return;}
-        using var cancel=new CancellationTokenSource();seeking=cancel;
+        using var cancel=new CancellationTokenSource();seeking=cancel;seekTarget=mark.Frame+1;
         try{GameStatus.Text=$"正在重播返回：{mark.Name}";await game.SeekAsync(mark.Frame,cancel.Token);UpdatePlaybackProject();RefreshGameView();SelectFrame(mark.Frame);}
         finally{seeking=null;}
     }
     void RemoveBookmarkClick(object? s,RoutedEventArgs e){try{if(BookmarkList.SelectedItem is FrameBookmark mark){bookmarks.Remove(mark);PersistBookmarks();}}catch(Exception ex){StatusLabel.Text=ex.Message;}}
     async void SaveRecordingClick(object? s,RoutedEventArgs e)=>await Operate(SaveRecordingAsync);
     async Task SaveRecordingAsync() {
+        if(Project?.InvalidFrom is not null)throw new InvalidOperationException("输入修改尚未执行。请先点击“应用修改”，或另存输入草稿项目。");
         if(game is not null)await game.PauseAsync(default);
         if(game is null && Project is null)throw new InvalidOperationException("先新建或打开录制。");
         var selected=await StorageProvider.SaveFilePickerAsync(new(){Title="保存单文件录制（包含初始存档与书签）",SuggestedFileName="录制-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".krec",DefaultExtension="krec",FileTypeChoices=[new("完整录制"){Patterns=["*.krec"]}]});

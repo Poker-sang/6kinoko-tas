@@ -12,6 +12,7 @@ public partial class MainWindow {
             Project=new TasProject(replay,"当前录制.krec");Project.Changed+=OnChanged;dirty=false;Timeline.Project=Project;
         }
         sourcePath=path;timelineSource=path;Timeline.LiveMasks=null;
+        SaveButton.IsEnabled=ExportButton.IsEnabled=true;HoldButton.IsEnabled=ReleaseButton.IsEnabled=replay.Count>0;Refresh();
     }
     void RefreshTimeline(SessionState state) {
         if(game is null)return;
@@ -29,8 +30,9 @@ public partial class MainWindow {
         if(game is null)throw new InvalidOperationException("先新建或打开录制。");
         if(game.IsLive){using var cancel=new CancellationTokenSource();seeking=cancel;try{await game.SwitchToPlaybackAsync(cancel.Token);UpdatePlaybackProject();}finally{seeking=null;}}
         else {
-            if(dirty && Project is not null)Project.Save(Path.Combine(game.SessionDirectory,"draft-"+Guid.NewGuid().ToString("N")+".ktas"));
-            await game.TakeoverAsync();var boundary=game.ReadState()!.Completed;
+            if(Project?.InvalidFrom is not null)throw new InvalidOperationException("请先应用输入修改，或撤销草稿后再接管录制。");
+            await game.PauseAsync(default);var recovery=CaptureRecovery();
+            await game.TakeoverAsync();recoveries.Push(recovery);var boundary=game.ReadState()!.Completed;
             foreach(var mark in bookmarks.Where(m=>m.Frame>=boundary).ToArray())bookmarks.Remove(mark);
             liveTimeline=new();timelineSource=null;FollowLatest.IsChecked=true;await game.ResumeAsync(1,default);
         }
@@ -39,7 +41,7 @@ public partial class MainWindow {
     public async Task ReplayAllAsync(){if(game is null)throw new InvalidOperationException("先新建或打开录制。");await game.ReplayAllAsync();UpdatePlaybackProject();FollowLatest.IsChecked=true;RefreshGameView();}
     public async Task RestartGameAsync() {
         if(game is null){await LaunchGame(false);return;}
-        using var cancel=new CancellationTokenSource();seeking=cancel;
+        using var cancel=new CancellationTokenSource();seeking=cancel;seekTarget=game.ReadState()?.Completed??1;
         try{GameStatus.Text="重新启动游戏，正在恢复位置…";await game.RestartAsync(cancel.Token);timelineSource=null;previewCount=-1;orderedGameWindow=0;UpdatePlaybackProject();RefreshGameView();}
         finally{seeking=null;}
     }

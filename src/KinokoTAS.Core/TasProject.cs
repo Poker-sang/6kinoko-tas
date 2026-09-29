@@ -19,6 +19,11 @@ public sealed class TasProject(Replay source,string sourceName) {
     public event Action? Changed;
     public bool IsEdited(int frame,int action)=>edits.ContainsKey(new(frame,action));
     public bool Down(int frame,int action)=>edits.TryGetValue(new(frame,action),out var v)?v:Source.Held(frame,action)>0;
+    public uint Mask(int frame) {uint mask=0;for(int a=0;a<Replay.ActionCount;a++)if(Down(frame,a))mask|=1u<<a;return mask;}
+    public void WriteEditPlan(string path) {
+        if(InvalidFrom is not int first)throw new InvalidOperationException("没有待执行的输入修改。");
+        AtomicFile.Write(path,s=>{using var w=new BinaryWriter(s,System.Text.Encoding.UTF8,true);w.Write("KTASED01"u8);w.Write(Source.Count);w.Write(first);for(int f=0;f<Source.Count;f++)w.Write(Mask(f));});
+    }
     public void SetRange(int first,int last,int action,bool down) {
         if(first<0 || last<first || last>=Source.Count || (uint)action>=Replay.ActionCount)throw new ArgumentOutOfRangeException(nameof(first));
         var changes=new List<Change>();

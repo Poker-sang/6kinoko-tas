@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 namespace KinokoTAS.Core;
 
+public sealed record SimulationProgress(string Stage,long Completed,long Total);
 public sealed record SessionState(long Sequence,long Completed,long Total,string Phase);
 public sealed record PreviewFrame(long Completed,int Width,int Height,byte[] Pixels);
 public sealed record InitialFile(string Path,string Sha256);
@@ -12,6 +13,8 @@ public sealed record SessionMetadata(int Version,string Identity,string EngineSh
 public sealed class FileGameSession : IGameSession {
     readonly string executable,root,identity;
     string? source;
+    TasProject? editPlan;
+    public event Action<SessionState>? Progress;
     public string? PlaybackSource=>source;
     public string CurrentRecordingPath=>IsLive?BranchPath:source??BranchPath;
     public string? LastRecoveryPath {get;private set;}
@@ -44,6 +47,34 @@ public sealed class FileGameSession : IGameSession {
         var files=Directory.GetFiles(Path.Combine(root,"initial")).Order().Select(p=>new InitialFile(Path.GetFileName(p),HashFile(p))).ToArray();
         File.WriteAllText(Path.Combine(root,"session.json"),JsonSerializer.Serialize(new SessionMetadata(1,identity,EngineHash,replayPath??"",files),new JsonSerializerOptions{WriteIndented=true}));
     }
+    public FileGameSession CreatePlaybackSession(string replayPath)=>new(executable,root+"-branch-"+Guid.NewGuid().ToString("N")[..8],replayPath,Path.Combine(root,"initial"),identity,ExternalWindow);
+    public async Task<FileGameSession> ResimulateAsync(TasProject project,IProgress<SimulationProgress>? progress=null,CancellationToken ct=default) {
+        if(project.InvalidFrom is null)throw new InvalidOperationException("没有待执行的输入修改。");
+        if(IsLive)throw new InvalidOperationException("请先暂停录制并切换回放，再修改输入。");
+        if(source is null || !Replay.Load(source).Bytes.Span.SequenceEqual(project.Source.Bytes.Span))throw new InvalidOperationException("输入草稿与当前会话来源不一致。");
+        await PauseAsync(ct);
+        string draft=Path.Combine(root,"edit-"+Guid.NewGuid().ToString("N")+".ktas");project.Save(draft);
+        var frozen=TasProject.Load(draft);
+        await using var generated=CreatePlaybackSession(source);
+        generated.editPlan=frozen;
+        generated.Progress+=s=>progress?.Report(new("重新模拟",s.Completed,frozen.Source.Count));
+        await generated.StartAsync(ct);
+        await generated.SendAsync("target",frozen.Source.Count,s=>s.Completed==frozen.Source.Count&&s.Phase.EndsWith("paused"),ct);
+        string result=await generated.StopAsync();
+        var replay=Replay.Load(result);
+        if(replay.Count!=frozen.Source.Count || replay.Identity!=frozen.Source.Identity)throw new InvalidDataException("重新模拟的录制长度或身份不匹配。");
+        for(int f=0;f<replay.Count;f++)for(int a=0;a<Replay.ActionCount;a++)
+            if((replay.Held(f,a)>0)!=frozen.Down(f,a))throw new InvalidDataException($"重新模拟未执行预期输入：帧 {f}，动作 {a}。");
+        var verified=CreatePlaybackSession(result);
+        try {
+            verified.Progress+=ReportVerification;
+            await verified.StartAsync(ct);
+            await verified.SeekAsync(replay.Count-1,ct);
+            verified.Progress-=ReportVerification;
+            return verified;
+        }catch{await verified.DisposeAsync();throw;}
+        void ReportVerification(SessionState s)=>progress?.Report(new("回放验证",s.Completed,replay.Count));
+    }
     public async Task RestartAsync(CancellationToken ct=default) {
         if(IsRunning)throw new InvalidOperationException("游戏仍在运行。");
         long target=lastCompleted;
@@ -63,12 +94,17 @@ public sealed class FileGameSession : IGameSession {
         bridge=Path.Combine(run,"bridge");Directory.CreateDirectory(bridge);var saves=Path.Combine(run,"saves");Directory.CreateDirectory(saves);
         foreach(var f in Directory.GetFiles(Path.Combine(root,"initial")))File.Copy(f,Path.Combine(saves,Path.GetFileName(f)));
         BranchPath=Path.Combine(run,"branch.krec");sequence=0;IsLive=source is null;
+        editPlan?.WriteEditPlan(Path.Combine(bridge,"edit.bin"));
         var start=new ProcessStartInfo(executable){UseShellExecute=false,WorkingDirectory=Path.GetDirectoryName(executable)!};
         foreach(var arg in new[]{"--save-dir",saves,source is null?"--record":"--replay",source??BranchPath,"--replay-status",Path.Combine(run,"replay-status.txt"),"--replay-identity",identity,"--tas-dir",bridge,"--tas-output",BranchPath})start.ArgumentList.Add(arg);
         if(ExternalWindow)start.ArgumentList.Add("--tas-window");
         start.Environment.Remove("KINOKO_REPLAY_MODE");start.Environment["KINOKO_TRACE"]="0";
         process=Process.Start(start)??throw new IOException("游戏进程启动失败。");
-        try {await WaitAsync(s=>s.Completed>=1 && s.Phase.EndsWith("paused"),TimeSpan.FromSeconds(30),ct);}
+        try {
+            await WaitAsync(s=>s.Completed>=1 && s.Phase.EndsWith("paused"),TimeSpan.FromSeconds(30),ct);
+            if(editPlan is not null && (!File.Exists(Path.Combine(bridge,"capabilities.txt")) || !File.ReadAllText(Path.Combine(bridge,"capabilities.txt")).Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries).Contains("edits-v1")))
+                throw new NotSupportedException("游戏版本不支持输入重新模拟，请选择新版游戏程序。");
+        }
         catch{await DisposeAsync();throw;}
     }
     static byte[] ReadShared(string path) {using var s=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);using var m=new MemoryStream();s.CopyTo(m);return m.ToArray();}
@@ -100,7 +136,7 @@ public sealed class FileGameSession : IGameSession {
     }
     async Task<SessionState> WaitAsync(Func<SessionState,bool> predicate,TimeSpan timeout,CancellationToken ct) {
         var watch=Stopwatch.StartNew();
-        while(watch.Elapsed<timeout){ct.ThrowIfCancellationRequested();var state=ReadState();if(state is not null&&predicate(state))return state;if(process is null||process.HasExited)throw new IOException("游戏已退出，请查看会话日志。");await Task.Delay(10,ct);}
+        while(watch.Elapsed<timeout){ct.ThrowIfCancellationRequested();var state=ReadState();if(state is not null)Progress?.Invoke(state);if(state is not null&&predicate(state))return state;if(process is null||process.HasExited)throw new IOException("游戏已退出，请查看会话日志。");await Task.Delay(10,ct);}
         throw new TimeoutException("引擎未确认操作。请确认选择的是支持 KTAS1 的新版游戏程序。");
     }
     async Task<SessionState> SendAsync(string verb,long arg,Func<SessionState,bool> predicate,CancellationToken ct) {
@@ -127,7 +163,8 @@ public sealed class FileGameSession : IGameSession {
         long target=frame+1;var replay=Replay.Load(source);if(target<1||target>replay.Count)throw new ArgumentOutOfRangeException(nameof(frame));
         await PauseAsync(ct);var state=ReadState()!;
         if(state.Completed>target){await StopAsync();await StartAsync(ct);}
-        await SendAsync("target",target,s=>s.Completed==target&&s.Phase.EndsWith("paused"),ct);
+        try {await SendAsync("target",target,s=>s.Completed==target&&s.Phase.EndsWith("paused"),ct);}
+        catch(OperationCanceledException){if(IsRunning)await PauseAsync(CancellationToken.None);throw;}
     }
     async Task SealLiveAsync(CancellationToken ct) {
         if(!IsLive)return;

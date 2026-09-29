@@ -6,18 +6,21 @@ public partial class MainWindow : Window {
     private string? sourcePath;
     public MainWindow() {
         InitializeComponent();InitializeGamePanel();InitializeLibrary();ActionPicker.ItemsSource=Replay.Labels;
-        Timeline.CellClicked+=(frame,action)=>{if(busy)return;SelectFrame(frame);FollowLatest.IsChecked=false;if(action>=0 && Timeline.LiveMasks is null)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));};
+        Timeline.CellClicked+=(frame,action)=>{if(busy||gameCommand)return;SelectFrame(frame);FollowLatest.IsChecked=false;if(action>=0 && Timeline.LiveMasks is null)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));};
         Timeline.FrameActivated+=async frame=>{if(!busy)await SeekGame(frame);};
         Timeline.BookmarkRequested+=frame=>{try{AddBookmarkAt(frame,BookmarkName.Text??"");}catch(Exception ex){StatusLabel.Text=ex.Message;}};
         Timeline.Scrolled+=delta=>{FollowLatest.IsChecked=false;FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
         Closing+=async (_,e)=> {
+            if(gameCommand||busy){e.Cancel=true;seeking?.Cancel();StatusLabel.Text="正在结束当前操作，请稍后再次关闭。";return;}
             if(game is not null && !allowClose){e.Cancel=true;await EndGame(false);if(!dirty){allowClose=true;Close();}return;}
             if(allowClose || !dirty)return;
             e.Cancel=true;
             if(await ConfirmDiscard()){allowClose=true;Close();}
         };
+        AddHandler(KeyDownEvent,EditorShortcut,RoutingStrategies.Tunnel);
         KeyDown+=async (_,e)=> {
-            if(dialogHost?.IsOpen==true)return;
+            if(e.Handled||dialogHost?.IsOpen==true||busy||gameCommand)return;
+            if(e.Source is TextBox || e.Source is NumericUpDown)return;
             if(!e.KeyModifiers.HasFlag(KeyModifiers.Control))return;
             if(e.Key==Key.O){e.Handled=true;await OpenPicker();}
             if(e.Key==Key.S){e.Handled=true;await Operate(SaveRecordingAsync);} 
@@ -29,7 +32,7 @@ public partial class MainWindow : Window {
         return await ConfirmContentAsync("未保存的修改","放弃未保存的输入草稿？原始录制不会被修改。","放弃修改","返回编辑");
     }
     private async Task OpenPicker() {
-        if(busy)return;
+        if(busy||gameCommand)return;
         var files=await StorageProvider.OpenFilePickerAsync(new(){Title="打开录制或 TAS 项目",AllowMultiple=false,FileTypeFilter=[new("Kinoko TAS"){Patterns=["*.krec","*.ktas"]}]});
         if(files.Count>0 && files[0].TryGetLocalPath() is string p) {
             var previous=Project;await OpenPathAsync(p);
@@ -64,7 +67,7 @@ public partial class MainWindow : Window {
         int frame=Timeline.SelectedFrame;
         FrameLabel.Text=Project.Source.Count==0?"空录制":frame.ToString("D6");
         if(Project.Source.Count>0)FrameDetails.Text=$"时间 {frame/60.0:F3} 秒\n原始 RNG 前 {Project.Source.RandomBefore(frame):X8}\n原始 RNG 后 {Project.Source.RandomAfter(frame):X8}\n原始检查值\n{Project.Source.Checkpoint(frame):X16}";
-        ValidationLabel.Text=Project.InvalidFrom is int first ? $"输入从第 {first} 帧起有变化。后续原始检查值不能验证编辑结果；需引擎重新执行。保存为 .ktas 项目。" : "原始录制校验完整。连接游戏后可定位、逐帧或接管录制。";
+        ValidationLabel.Text=Project.InvalidFrom is int first ? $"输入从第 {first} 帧起有变化。点击“应用修改”或按 F5 重新模拟并验证，然后保存 .krec。" : "原始录制校验完整。连接游戏后可定位、逐帧或接管录制。";
         Timeline.InvalidateVisual();
     }
     private void SelectFrame(int f) {
@@ -75,27 +78,27 @@ public partial class MainWindow : Window {
         if(Timeline.LiveMasks is null)Refresh();else Timeline.InvalidateVisual();
     }
     private async Task SaveProject() {
-        if(Project is null || busy)return;
+        if(Project is null || busy || gameCommand)return;
         var file=await StorageProvider.SaveFilePickerAsync(new(){Title="另存 TAS 项目",SuggestedFileName=Path.GetFileNameWithoutExtension(Project.SourceName)+".ktas",DefaultExtension="ktas",FileTypeChoices=[new("TAS 项目"){Patterns=["*.ktas"]}]});
         if(file?.TryGetLocalPath() is not string path)return;
         if(!Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)){StatusLabel.Text="项目必须使用 .ktas 扩展名。";return;}
         try{Project.Save(path);RecordingLibrary.SaveBookmarks(path+".bookmarks.json",bookmarks);ShowSaved(path);dirty=false;StatusLabel.Text="项目已保存："+path;Refresh();}catch(Exception ex){StatusLabel.Text="保存失败："+ex.Message;}
     }
     private async void ExportClick(object? s,RoutedEventArgs e) {
-        if(Project is null || busy)return;
+        if(Project is null || busy || gameCommand)return;
         var file=await StorageProvider.SaveFilePickerAsync(new(){Title="导出未修改的原始录制",SuggestedFileName="original.krec",DefaultExtension="krec"});
         if(file?.TryGetLocalPath() is not string path)return;
         if(Path.GetFullPath(path).Equals(sourcePath,OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal)){StatusLabel.Text="请使用不同路径，原始文件保持只读。";return;}
         try{Project.ExportSource(path);StatusLabel.Text="已导出原始录制（不包含项目中的输入编辑）。";}catch(Exception ex){StatusLabel.Text="导出失败："+ex.Message;}
     }
     private void EditRange(bool down) {
-        if(Project is null || busy)return;
-        try{Project.SetRange((int)(RangeStart.Value??0),(int)(RangeEnd.Value??0),ActionPicker.SelectedIndex,down);StatusLabel.Text="区间已更新；仅保存到编辑项目，尚不会改变游戏回放。";}catch(Exception){StatusLabel.Text="请确认起止帧顺序和动作选择。";}
+        if(Project is null || busy || gameCommand)return;
+        try{Project.SetRange((int)(RangeStart.Value??0),(int)(RangeEnd.Value??0),ActionPicker.SelectedIndex,down);StatusLabel.Text="区间已更新；点击“应用修改”重新模拟。";}catch(Exception){StatusLabel.Text="请确认起止帧顺序和动作选择。";}
     }
     private async void OpenClick(object? s,RoutedEventArgs e)=>await OpenPicker();
     private async void SaveClick(object? s,RoutedEventArgs e)=>await SaveProject();
-    private void UndoClick(object? s,RoutedEventArgs e)=>Project?.Undo();
-    private void RedoClick(object? s,RoutedEventArgs e)=>Project?.Redo();
+    private void UndoClick(object? s,RoutedEventArgs e){if(!busy&&!gameCommand)Project?.Undo();}
+    private void RedoClick(object? s,RoutedEventArgs e){if(!busy&&!gameCommand)Project?.Redo();}
     private void HoldClick(object? s,RoutedEventArgs e)=>EditRange(true);
     private void ReleaseClick(object? s,RoutedEventArgs e)=>EditRange(false);
     private async void PreviousClick(object? s,RoutedEventArgs e){FollowLatest.IsChecked=false;SelectFrame(Timeline.SelectedFrame-1);await SeekGame(Timeline.SelectedFrame);}
