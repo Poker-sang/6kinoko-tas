@@ -1,0 +1,1 @@
+ContentDialog controls copied from C:/WorkSpace/Pixeval/src/Pixeval/Controls/ContentDialog. Copyright (c) Pixeval, GPL-3.0. Original notices retained. Adaptations: namespace and compact Panel template selector.

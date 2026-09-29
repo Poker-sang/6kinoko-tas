@@ -73,11 +73,7 @@ public partial class MainWindow {
         }
     }
     async Task<bool> ConfirmReplayEngine() {
-        var dialog=new Window{Title="使用新版引擎验证录制",Width=480,Height=210,WindowStartupLocation=WindowStartupLocation.CenterOwner};
-        var panel=new StackPanel{Margin=new Thickness(18),Spacing=14};
-        panel.Children.Add(new TextBlock{Text="录制可能来自另一版程序。本次保留原始录制并逐帧检查状态，出现不同步即停止。TAS 输入编辑暂不注入这次回放。继续？",TextWrapping=Avalonia.Media.TextWrapping.Wrap});
-        var yes=new Button{Content="开始验证回放"};yes.Click+=(_,_)=>dialog.Close(true);panel.Children.Add(yes);
-        var no=new Button{Content="取消"};no.Click+=(_,_)=>dialog.Close(false);panel.Children.Add(no);dialog.Content=panel;return await dialog.ShowDialog<bool>(this);
+        return await ConfirmContentAsync("验证录制","将逐帧验证录制，出现不同步时停止。输入草稿不会改变本次回放。","开始回放","取消");
     }
     async Task LaunchGame(bool recording) {
         var exe=await PickGame();if(exe is null)return;SaveSettings();

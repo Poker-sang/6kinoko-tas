@@ -15,6 +15,7 @@ public partial class MainWindow : Window {
             if(await ConfirmDiscard()){allowClose=true;Close();}
         };
         KeyDown+=async (_,e)=> {
+            if(dialogHost?.IsOpen==true)return;
             if(!e.KeyModifiers.HasFlag(KeyModifiers.Control))return;
             if(e.Key==Key.O){e.Handled=true;await OpenPicker();}
             if(e.Key==Key.S){e.Handled=true;await Operate(SaveRecordingAsync);} 
@@ -23,14 +24,7 @@ public partial class MainWindow : Window {
         };
     }
     private async Task<bool> ConfirmDiscard() {
-        var dialog=new Window{Title="未保存的修改",Width=420,Height=175,CanResize=false,WindowStartupLocation=WindowStartupLocation.CenterOwner};
-        var panel=new StackPanel{Margin=new Avalonia.Thickness(20),Spacing=15};
-        panel.Children.Add(new TextBlock{Text="放弃未保存的编辑？原始录制不会被修改。",TextWrapping=Avalonia.Media.TextWrapping.Wrap});
-        var buttons=new StackPanel{Orientation=Avalonia.Layout.Orientation.Horizontal,Spacing=12};
-        var cancel=new Button{Content="返回编辑"};cancel.Click+=(_,_)=>dialog.Close(false);
-        var discard=new Button{Content="放弃修改"};discard.Click+=(_,_)=>dialog.Close(true);
-        buttons.Children.Add(cancel);buttons.Children.Add(discard);panel.Children.Add(buttons);dialog.Content=panel;
-        return await dialog.ShowDialog<bool>(this);
+        return await ConfirmContentAsync("未保存的修改","放弃未保存的输入草稿？原始录制不会被修改。","放弃修改","返回编辑");
     }
     private async Task OpenPicker() {
         if(busy)return;
