@@ -113,7 +113,9 @@ public partial class MainWindow {
         Set(gameKeys.Contains(Key.Space),4);Set(gameKeys.Contains(Key.Enter),11);Set(gameKeys.Contains(Key.Escape),13);return m;
     }
     public void RefreshGameView() {
+        RestartGameButton.IsEnabled=game is not null?!game.IsRunning:Project is not null;
         if(game is null)return;
+        if(!game.IsRunning){EngineLabel.Text="游戏已关闭";GameStatus.Text=operationError??"点击“重新启动游戏”恢复当前录制。";return;}
         try {
             if(game.ExternalWindow && OperatingSystem.IsWindows()) {
                 if(orderedProcess!=game.GameProcessId){orderedProcess=game.GameProcessId;orderedGameWindow=0;}

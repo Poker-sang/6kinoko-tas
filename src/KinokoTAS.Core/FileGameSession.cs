@@ -18,7 +18,8 @@ public sealed class FileGameSession : IGameSession {
     readonly SemaphoreSlim commands=new(1,1);
     Process? process;
     string run="",bridge="";
-    long sequence,inputSequence;
+    long sequence,inputSequence,lastCompleted;
+    public bool IsRunning=>process is not null && !process.HasExited;
     public string BranchPath {get;private set;}="";
     public string SessionDirectory=>root;
     public int GameProcessId=>process?.Id??0;
@@ -43,6 +44,18 @@ public sealed class FileGameSession : IGameSession {
         var files=Directory.GetFiles(Path.Combine(root,"initial")).Order().Select(p=>new InitialFile(Path.GetFileName(p),HashFile(p))).ToArray();
         File.WriteAllText(Path.Combine(root,"session.json"),JsonSerializer.Serialize(new SessionMetadata(1,identity,EngineHash,replayPath??"",files),new JsonSerializerOptions{WriteIndented=true}));
     }
+    public async Task RestartAsync(CancellationToken ct=default) {
+        if(IsRunning)throw new InvalidOperationException("游戏仍在运行。");
+        long target=lastCompleted;
+        if(process is not null){process.Dispose();process=null;}
+        if(IsLive){
+            var recorded=Replay.Load(BranchPath); // Never resume a truncated or corrupt recording as valid.
+            source=BranchPath;LastRecoveryPath=BranchPath;target=recorded.Count;
+        }
+        var replay=source is not null?Replay.Load(source):null;
+        await StartAsync(ct);
+        if(replay?.Count>0)await SeekAsync(Math.Clamp(target-1,0,replay.Count-1),ct);
+    }
     public async Task StartAsync(CancellationToken ct=default) {
         if(process is not null)throw new InvalidOperationException("会话已启动。");
         if(HashFile(executable)!=EngineHash)throw new IOException("游戏程序发生变化，请重新创建会话。");
@@ -64,7 +77,8 @@ public sealed class FileGameSession : IGameSession {
         try {
             var words=System.Text.Encoding.UTF8.GetString(ReadShared(Path.Combine(bridge,"state.txt"))).Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries);
             if(words.Length!=5 || words[0]!="KTAS1")return null;
-            return new(long.Parse(words[1]),long.Parse(words[2]),long.Parse(words[3]),words[4]);
+            lastCompleted=long.Parse(words[2]);
+            return new(long.Parse(words[1]),lastCompleted,long.Parse(words[3]),words[4]);
         }catch(FileNotFoundException){return null;}catch(DirectoryNotFoundException){return null;}catch(FormatException){return null;}
     }
     public PreviewFrame? ReadPreview() {

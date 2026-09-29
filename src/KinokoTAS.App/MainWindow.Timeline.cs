@@ -37,5 +37,12 @@ public partial class MainWindow {
         RecordToggle.IsChecked=game.IsLive;RefreshGameView();
     }
     public async Task ReplayAllAsync(){if(game is null)throw new InvalidOperationException("先新建或打开录制。");await game.ReplayAllAsync();UpdatePlaybackProject();FollowLatest.IsChecked=true;RefreshGameView();}
+    public async Task RestartGameAsync() {
+        if(game is null){await LaunchGame(false);return;}
+        using var cancel=new CancellationTokenSource();seeking=cancel;
+        try{GameStatus.Text="重新启动游戏，正在恢复位置…";await game.RestartAsync(cancel.Token);timelineSource=null;previewCount=-1;orderedGameWindow=0;UpdatePlaybackProject();RefreshGameView();}
+        finally{seeking=null;}
+    }
+    async void RestartGameClick(object? s,RoutedEventArgs e)=>await Operate(RestartGameAsync);
     async void ReplayAllClick(object? s,RoutedEventArgs e)=>await Operate(ReplayAllAsync);
 }
