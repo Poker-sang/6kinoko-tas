@@ -28,7 +28,7 @@ public partial class MainWindow {
         if(BookmarkList.SelectedItem is not FrameBookmark mark)return;
         if(game?.IsLive==true){
             if(dirty && !await ConfirmDiscard())return;dirty=false;
-            var live=game;await EndGame(true);await AttachGameSessionAsync(live.ReopenBranch);
+            var live=game;await EndGame(true);await AttachGameSessionAsync(live.ReopenBranch());
         }
         if(game is null){await LaunchGame(false);if(game is null)return;}
         using var cancel=new CancellationTokenSource();seeking=cancel;
