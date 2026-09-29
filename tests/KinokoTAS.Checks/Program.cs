@@ -64,6 +64,8 @@ internal static class Program {
    var window=new MainWindow();window.Show();Dispatcher.UIThread.RunJobs();
    var confirmation=window.ConfirmContentAsync("未保存的修改","放弃未保存的输入草稿？原始录制不会被修改。","放弃修改","返回编辑");
    Dispatcher.UIThread.RunJobs();
+   for(int frame=0;frame<5;frame++){Dispatcher.UIThread.RunJobs();window.UpdateLayout();Thread.Sleep(20);}
+   foreach(var c in window.GetVisualDescendants().OfType<KinokoTAS.App.Controls.ContentDialogHost>())Console.WriteLine($"Dialog host: {c.Bounds} visible={c.IsVisible}");
    using(var dialogImage=window.CaptureRenderedFrame()??throw new Exception("No dialog image"))dialogImage.Save(Path.Combine(output,"dialog.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    Check(!(window.Content as Control)!.IsEnabled,"dialog blocks background controls");
    var primary=window.GetVisualDescendants().OfType<Button>().Single(b=>b.Name=="PART_PrimaryButton");
