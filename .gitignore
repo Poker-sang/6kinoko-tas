@@ -3,3 +3,7 @@ obj/
 artifacts/
 .vs/
 *.user
+
+sessions/
+*.krec
+*.ktas
