@@ -64,6 +64,7 @@ internal static class Program {
    using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var stop=window.StopGameSessionAsync();while(!stop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}stop.GetAwaiter().GetResult();
    window.Project.Undo();Check(window.Project.EditCount==0,"UI undo");
+   window.Hide();window=new MainWindow();window.Show();
    var externalSession=new FileGameSession(fakeExe,Path.Combine(output,"external-session"),null,Path.Combine(output,"initial"),new string('a',64),true);
    var externalConnect=window.AttachGameSessionAsync(externalSession);
    while(!externalConnect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalConnect.GetAwaiter().GetResult();
