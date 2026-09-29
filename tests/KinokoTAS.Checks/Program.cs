@@ -48,6 +48,8 @@ internal static class Program {
    Check(window.Project!.IsEdited(0,4) && !window.Project.Down(0,4),"timeline click edits selected action");
    var uiSession=new FileGameSession(fakeExe,Path.Combine(output,"ui-session"),replayPath,Path.Combine(output,"initial"),new string('a',64));
    var connect=window.AttachGameSessionAsync(uiSession);
+   window.PauseOnDeactivateAsync().GetAwaiter().GetResult();
+   Check(!Directory.GetFiles(uiSession.SessionDirectory,"command.txt",SearchOption.AllDirectories).Any(),"startup focus loss does not pause before first frame");
    while(!connect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}connect.GetAwaiter().GetResult();
    var previewDeadline=DateTime.UtcNow.AddSeconds(10);
    while(window.FindControl<Image>("GameImage")!.Source is null && DateTime.UtcNow<previewDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}

@@ -12,8 +12,13 @@ public partial class MainWindow {
     string? gameExe;
     void InitializeGamePanel() {
         gameTimer.Tick+=(_,_)=>PollGame();gameTimer.Start();
-        Deactivated+=async (_,_)=>{gameKeys.Clear();if(game is not null){game.Input(0);try{await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}};
+        Deactivated+=async (_,_)=>await PauseOnDeactivateAsync();
         Closed+=(_,_)=>{gameTimer.Stop();bitmap?.Dispose();};
+    }
+    public async Task PauseOnDeactivateAsync() {
+        gameKeys.Clear();var active=game;
+        if(active is null)return;
+        active.Input(0);try{await active.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}
     }
     async Task Operate(Func<Task> action) {
         if(gameCommand)return;gameCommand=true;
@@ -22,7 +27,7 @@ public partial class MainWindow {
     }
     async Task<string?> PickGame() {
         if(gameExe is not null && File.Exists(gameExe))return gameExe;
-        var paths=await StorageProvider.OpenFilePickerAsync(new(){Title="选择支持 KTAS1 的新版 kinoko_modern_gpu 程序",AllowMultiple=false});
+        var paths=await StorageProvider.OpenFilePickerAsync(new(){Title="选择游戏程序 kinoko_modern_gpu.exe（不是 .ktas 录制项目）",AllowMultiple=false});
         if(paths.Count==0)return null;gameExe=paths[0].TryGetLocalPath();return gameExe;
     }
     async Task<string?> InitialDirectory(string? replay) {
@@ -83,9 +88,11 @@ public partial class MainWindow {
         await AttachGameSessionAsync(session);
     }
     public async Task AttachGameSessionAsync(FileGameSession session) {
-        await EndGame(false);game=session;
+        await EndGame(false);
         GameStatus.Text="启动引擎，等待首帧…";previewCount=-1;gameKeys.Clear();
-        await game.StartAsync();EngineLabel.Text=session.IsLive?"新录制 · 已暂停":"回放 · 已暂停";
+        try {await session.StartAsync();}
+        catch {await session.DisposeAsync();EngineLabel.Text="启动失败";throw;}
+        game=session;EngineLabel.Text=session.IsLive?"新录制 · 已暂停":"回放 · 已暂停";
     }
     uint CurrentMask() {
         if(!GamePanel.IsFocused)return 0;uint m=0;
