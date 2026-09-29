@@ -2,7 +2,7 @@
 
 ## 配套版本
 
-编辑器：`artifacts/windows-editor-04/KinokoTAS.App.exe`（源码 2981a59）。
+编辑器：`artifacts/windows-editor-05/KinokoTAS.App.exe`（源码 2202d26）。
 游戏程序：
 `C:/WorkSpace/6kinoko-modern/runtime-builds/modern-windows-tas-bridge-01/6kinoko-modern-windows-x64-94aefb79/kinoko_modern_gpu.exe`。
 必须选择支持 KTAS1 的这版或更新兼容程序，旧版只有 CLI 回放参数，不能连接。

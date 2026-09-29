@@ -1,21 +1,21 @@
 # Embedded session delivery — 2026-09-29
 
-Editor source: `2981a59`, local independent repository; remote still unconfigured.
+Editor source: `2202d26`, local independent repository; remote still unconfigured.
 Game source: `94aefb79`, pushed to `codex/tas-bridge` in 6kinoko-modern.
 Modern is based on completed deterministic script-math fixes at 65b2eb01.
 No Mod changes merged; Mod work remains in its separate checkout/PR.
 
-Published editor: `artifacts/windows-editor-04/KinokoTAS.App.exe` (.NET 10 required).
+Published editor: `artifacts/windows-editor-05/KinokoTAS.App.exe` (.NET 10 required).
 Game: `C:/WorkSpace/6kinoko-modern/runtime-builds/modern-windows-tas-bridge-01/6kinoko-modern-windows-x64-94aefb79/kinoko_modern_gpu.exe`.
 See [operation and limitations](embedded-session.md).
 
 Validation:
-- Editor Release build: zero warnings/errors; logs in artifacts/build-10.
+- Editor Release build: zero warnings/errors; logs in artifacts/build-12.
 - Core file/edit checks and headless Avalonia click/undo checks passed.
 - Separate fake engine process checks: handshake, forward/backward seek,
   acknowledged takeover, one-frame execution, branch finalization and initial-save isolation.
 - Headless editor received the fake engine preview and rendered it in its image panel.
-  Screenshot artifacts/checks-10/editor.png inspected; it is synthetic, not gameplay.
+  Screenshot artifacts/checks-12/editor.png inspected; it is synthetic, not gameplay.
 - Game replay contracts: two-frame verified prefix + takeover release edge + new
   valid frame saved and replayed with matching checksums through the real runtime.
 - Synthetic hidden-window SDL GPU test passed actual RGBA readback/frame-tag check.
@@ -25,3 +25,5 @@ Validation:
 
 No actual game gameplay was run by the agent this batch. Module/transport/GPU
 checks do not establish end-to-end gameplay validation. All old artifacts retained.
+
+Startup fix: real user sessions ended with zero frames after focus-loss pause arrived before the first frame. The UI now publishes the active session only after startup handshake completes. Failed startup leaves no polled session to overwrite the error. The new regression confirms startup focus loss sends no pause command. Headless preview checks explicitly drive refresh rather than depending on timer scheduling. Actual gameplay remains user-verified.
