@@ -224,6 +224,10 @@ internal static class Program {
   try{await editSession.SeekAsync(170,seekCancel.Token);throw new Exception("Seek cancellation ignored");}catch(OperationCanceledException){}
   editSession.Progress-=CancelSeek;
   Check(editSession.ReadState()!.Phase=="paused","cancelled seek pauses engine at acknowledged boundary");
+  using var verifyCancel=new CancellationTokenSource();
+  try{await editSession.ResimulateAsync(edited,new TestProgress(p=>{if(p.Stage=="回放验证"&&p.Completed>=3)verifyCancel.Cancel();}),verifyCancel.Token);throw new Exception("Verification cancellation ignored");}
+  catch(OperationCanceledException){}
+  Check(editSession.IsRunning && edited.EditCount==6,"cancelling verification preserves original and draft");
   File.WriteAllText(Path.Combine(editSession.SessionDirectory,"initial","fail-verification.dat"),"fixture");
   try{await editSession.ResimulateAsync(edited);throw new Exception("Verification failure ignored");}catch(InvalidDataException){}
   Check(editSession.IsRunning && edited.EditCount==6,"failed verification cannot replace original or clear edits");

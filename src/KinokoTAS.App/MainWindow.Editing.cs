@@ -17,7 +17,7 @@ public partial class MainWindow {
     void AdoptSession(FileGameSession session) {
         game=session;timelineSource=null;liveTimeline=new();previewCount=-1;orderedGameWindow=0;
         GameImage.IsVisible=!session.ExternalWindow;ExternalHint.IsVisible=session.ExternalWindow;
-        EmbeddedOption.IsEnabled=false;UpdatePlaybackProject();Refresh();RefreshGameView();
+        EmbeddedOption.IsEnabled=false;UpdatePlaybackProject();bookmarkFile=BookmarkCache(Project!.Source);PersistBookmarks();Refresh();RefreshGameView();
     }
     public async Task ApplyEditsAsync() {
         if(Project?.InvalidFrom is null)throw new InvalidOperationException("请先修改时间轴上的输入。");

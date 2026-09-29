@@ -6,13 +6,13 @@ public partial class MainWindow : Window {
     private string? sourcePath;
     public MainWindow() {
         InitializeComponent();InitializeGamePanel();InitializeLibrary();ActionPicker.ItemsSource=Replay.Labels;
-        Timeline.CellClicked+=(frame,action)=>{if(busy||gameCommand)return;SelectFrame(frame);FollowLatest.IsChecked=false;if(action>=0 && Timeline.LiveMasks is null)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));};
+        Timeline.CellClicked+=(frame,action)=>{if(busy||gameCommand)return;SelectFrame(frame);FollowLatest.IsChecked=false;if(action>=0){if(Timeline.LiveMasks is null)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));else StatusLabel.Text="先关闭“录制”开关，再修改已录制的输入。";}};
         Timeline.FrameActivated+=async frame=>{if(!busy)await SeekGame(frame);};
-        Timeline.BookmarkRequested+=frame=>{try{AddBookmarkAt(frame,BookmarkName.Text??"");}catch(Exception ex){StatusLabel.Text=ex.Message;}};
+        Timeline.BookmarkRequested+=frame=>{if(busy||gameCommand)return;try{AddBookmarkAt(frame,BookmarkName.Text??"");}catch(Exception ex){StatusLabel.Text=ex.Message;}};
         Timeline.Scrolled+=delta=>{FollowLatest.IsChecked=false;FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
         Closing+=async (_,e)=> {
             if(gameCommand||busy){e.Cancel=true;seeking?.Cancel();StatusLabel.Text="正在结束当前操作，请稍后再次关闭。";return;}
-            if(game is not null && !allowClose){e.Cancel=true;await EndGame(false);if(!dirty){allowClose=true;Close();}return;}
+            if(game is not null && !allowClose){e.Cancel=true;try{await EndGame(false);if(!dirty){allowClose=true;Close();}}catch(Exception ex){StatusLabel.Text="结束录制失败："+ex.Message+"；会话文件已保留。";}return;}
             if(allowClose || !dirty)return;
             e.Cancel=true;
             if(await ConfirmDiscard()){allowClose=true;Close();}
@@ -93,6 +93,7 @@ public partial class MainWindow : Window {
     }
     private void EditRange(bool down) {
         if(Project is null || busy || gameCommand)return;
+        if(game?.IsLive==true){StatusLabel.Text="先关闭“录制”开关，再修改已录制的输入。";return;}
         try{Project.SetRange((int)(RangeStart.Value??0),(int)(RangeEnd.Value??0),ActionPicker.SelectedIndex,down);StatusLabel.Text="区间已更新；点击“应用修改”重新模拟。";}catch(Exception){StatusLabel.Text="请确认起止帧顺序和动作选择。";}
     }
     private async void OpenClick(object? s,RoutedEventArgs e)=>await OpenPicker();
