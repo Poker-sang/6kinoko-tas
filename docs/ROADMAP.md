@@ -1,12 +1,19 @@
 # Roadmap
 
-- [x] Independent editor, validated reader, visible-row timeline.
-- [x] Cell/range edits, undo/redo, compressed projects and source export.
-- [x] Versioned local engine protocol, embedded preview and real pause/step.
-- [x] New recording, replay seek by restart, and takeover into retained branches.
+- [x] Independent editor and validated replay/package reader.
+- [x] Horizontal live timeline, playhead, follow mode and bookmarks.
+- [x] Cell/range edits, undo/redo and compressed draft projects.
+- [x] Single-file .krec including initial saves and bookmarks.
+- [x] Pause/step, optional embedded preview and external game window.
+- [x] New recording, restart/seek and takeover with retained source.
+- [x] Execute edited input, regenerate checkpoints and verify full playback.
+- [x] Restore previous overwrite, including frame position, bookmarks and draft.
+- [x] Editor shortcuts, operation progress/cancellation, failure isolation.
+- [x] Public GitHub repository with master as default.
 - [ ] Playback speed controls.
-- [ ] Execute edited input and generate new replay checkpoints.
-- [ ] Insert/delete frames, bookmarks, drag painting.
+- [ ] Insert/delete frames and drag painting.
 - [ ] Save-state seeking after engine serialization is complete.
 - [ ] Native Linux/macOS editor validation.
-- [ ] User-selected remote and publishing.
+
+Recovery history currently belongs to the active editor session. Old runtime
+files remain on disk; no automatic cleanup is performed.
