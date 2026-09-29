@@ -100,8 +100,8 @@ internal static class Program {
    }catch(IOException){}
    if(run||count<target)count++;
    string phase=(run||count<target)?(live?"live":"playing"):(live?"live-paused":"paused");
-   AtomicFile.Write(Path.Combine(bridge,"state.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"KTAS1 {seq} {count} 180 {phase}\n");});
-   AtomicFile.Write(Path.Combine(bridge,"image.rgba"),s=>{using var w=new BinaryWriter(s,System.Text.Encoding.UTF8,true);w.Write("KTASIMG1"u8);w.Write(count);w.Write(1);w.Write(1);w.Write(new byte[]{10,20,30,255});});
+   try {AtomicFile.Write(Path.Combine(bridge,"state.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"KTAS1 {seq} {count} 180 {phase}\n");});
+   AtomicFile.Write(Path.Combine(bridge,"image.rgba"),s=>{using var w=new BinaryWriter(s,System.Text.Encoding.UTF8,true);w.Write("KTASIMG1"u8);w.Write(count);w.Write(1);w.Write(1);w.Write(new byte[]{10,20,30,255});});}catch(IOException){}catch(UnauthorizedAccessException){}
    Thread.Sleep(2);
   }return 2;
  }
