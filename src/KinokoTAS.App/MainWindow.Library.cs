@@ -11,7 +11,8 @@ public partial class MainWindow {
     void LoadBookmarksFor(Replay replay,string path) {
         bookmarkFile=BookmarkCache(replay);bookmarks.Clear();
         var stored=File.Exists(bookmarkFile)?bookmarkFile:path+".bookmarks.json";
-        foreach(var mark in RecordingLibrary.LoadBookmarks(stored,replay.Count))bookmarks.Add(mark);
+        var marks=File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,replay.Count):Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)&&RecordingPackage.IsPackage(path)?RecordingPackage.Load(path).Bookmarks:[];
+        foreach(var mark in marks)bookmarks.Add(mark);
     }
     void PersistBookmarks(){if(bookmarkFile is not null)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);}
     public async Task AddBookmarkAsync(string name) {
@@ -41,14 +42,16 @@ public partial class MainWindow {
     async Task SaveRecordingAsync() {
         if(game is not null)await game.PauseAsync(default);
         if(game is null && Project is null)throw new InvalidOperationException("先新建或打开录制。");
-        var folders=await StorageProvider.OpenFolderPickerAsync(new(){Title="选择保存位置（将新建独立录制文件夹，包含初始存档和书签）",AllowMultiple=false});
-        if(folders.Count==0 || folders[0].TryGetLocalPath() is not string folder)return;
+        var selected=await StorageProvider.SaveFilePickerAsync(new(){Title="保存单文件录制（包含初始存档与书签）",SuggestedFileName="录制-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".krec",DefaultExtension="krec",FileTypeChoices=[new("完整录制"){Patterns=["*.krec"]}]});
+        if(selected?.TryGetLocalPath() is not string output)return;
+        if(!Path.GetExtension(output).Equals(".krec",StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("请使用 .krec 扩展名。");
+        if(string.Equals(Path.GetFullPath(output),sourcePath,OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal))throw new IOException("请选择新文件名，原录制保持不变。");
         var initial=game is not null?Path.Combine(game.SessionDirectory,"initial"):await InitialDirectory(sourcePath);
         if(initial is null)return;
         Replay replay;
         if(game is not null){var active=game;await EndGame(false);replay=Replay.Load(active.BranchPath);}
         else replay=Project!.Source;
-        var output=RecordingLibrary.SaveBundle(folder,replay,initial,bookmarks.Where(m=>m.Frame<replay.Count));ShowSaved(output);
+        RecordingPackage.Save(output,replay,initial,bookmarks.Where(m=>m.Frame<replay.Count));ShowSaved(output);
         if(!dirty)await OpenPathAsync(output);
         StatusLabel.Text="录制及初始存档、书签已保存。输入草稿需单独保存项目。";
     }

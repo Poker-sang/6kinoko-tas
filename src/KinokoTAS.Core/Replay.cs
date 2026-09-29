@@ -32,6 +32,7 @@ public sealed class Replay {
         return new Replay((byte[])input.Clone(),count,identity);
     }
     public static Replay Load(string path) {
+        if(RecordingPackage.IsPackage(path))return RecordingPackage.Load(path).Replay;
         var info=new FileInfo(path);
         if(info.Length>HeaderSize+(long)RecordSize*MaxFrames+17)throw new InvalidDataException("录制超过大小限制。");
         return Parse(File.ReadAllBytes(path));

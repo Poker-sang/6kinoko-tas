@@ -40,6 +40,9 @@ public partial class MainWindow {
     }
     async Task<string?> InitialDirectory(string? replay) {
         if(replay is not null) {
+            if(Path.GetExtension(replay).Equals(".krec",StringComparison.OrdinalIgnoreCase) && RecordingPackage.IsPackage(replay)) {
+                var package=RecordingPackage.Load(replay);var directory=Path.Combine(AppContext.BaseDirectory,"sessions","unpacked-"+Guid.NewGuid().ToString("N"),"initial");package.ExtractInitial(directory);return directory;
+            }
             var parent=Directory.GetParent(replay);
             foreach(var root in new[]{parent?.FullName,parent?.Parent?.FullName}) {
                 if(root is not null && Directory.Exists(Path.Combine(root,"initial")))return Path.Combine(root,"initial");

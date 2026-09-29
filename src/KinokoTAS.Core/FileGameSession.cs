@@ -36,7 +36,7 @@ public sealed class FileGameSession : IGameSession {
             var name=Path.GetFileName(file);
             if((name.EndsWith(".dat",StringComparison.OrdinalIgnoreCase) && !name.StartsWith("6kinoko_",StringComparison.OrdinalIgnoreCase)) || name=="input-actions.cfg")File.Copy(file,Path.Combine(root,"initial",name));
         }
-        if(replayPath is not null){source=Path.Combine(root,"source.krec");File.Copy(replayPath,source);if(Replay.Load(source).Identity!=identity)throw new InvalidDataException("录制身份不一致。");}
+        if(replayPath is not null){source=Path.Combine(root,"source.krec");AtomicFile.Write(source,s=>s.Write(Replay.Load(replayPath).Bytes.Span));if(Replay.Load(source).Identity!=identity)throw new InvalidDataException("录制身份不一致。");}
         var files=Directory.GetFiles(Path.Combine(root,"initial")).Order().Select(p=>new InitialFile(Path.GetFileName(p),HashFile(p))).ToArray();
         File.WriteAllText(Path.Combine(root,"session.json"),JsonSerializer.Serialize(new SessionMetadata(1,identity,EngineHash,replayPath??"",files),new JsonSerializerOptions{WriteIndented=true}));
     }
