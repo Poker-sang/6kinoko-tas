@@ -43,6 +43,22 @@ internal static class Program {
    Check(Replay.Load(bundle).Bytes.Span.SequenceEqual(data),"saved bundle preserves exact replay");
    Check(File.ReadAllText(Path.Combine(Path.GetDirectoryName(bundle)!,"initial","marisaA.dat"))=="original","saved bundle includes initial saves");
    Check(RecordingLibrary.LoadBookmarks(bundle+".bookmarks.json",replay.Count).SequenceEqual(marks),"named bookmarks survive bundle save and reload");
+   string packed=Path.Combine(output,"single.krec");RecordingPackage.Save(packed,replay,Path.Combine(output,"initial"),marks);
+   var package=RecordingPackage.Load(packed);
+   Check(Replay.Load(packed).Bytes.Span.SequenceEqual(data)&&package.Bookmarks.SequenceEqual(marks),"single-file replay and bookmarks roundtrip");
+   var unpack=Path.Combine(output,"unpacked-initial");package.ExtractInitial(unpack);
+   Check(File.ReadAllText(Path.Combine(unpack,"marisaA.dat"))=="original","single-file initial saves roundtrip");
+   Check(new FileInfo(packed).Length<data.Length,"replay package compression reduces fixture size");
+   var badPack=Path.Combine(output,"invalid.krec");File.Copy(packed,badPack);
+   using(var zip=System.IO.Compression.ZipFile.Open(badPack,System.IO.Compression.ZipArchiveMode.Update)){zip.CreateEntry("../escape.dat");}
+   bool rejected=false;try{RecordingPackage.Load(badPack);}catch(InvalidDataException){rejected=true;}Check(rejected,"unexpected package entry rejected before extraction");
+   var broken=Path.Combine(output,"damaged.krec");File.Copy(packed,broken);
+   using(var zip=System.IO.Compression.ZipFile.Open(broken,System.IO.Compression.ZipArchiveMode.Update)){zip.GetEntry("initial/marisaA.dat")!.Delete();using var changed=zip.CreateEntry("initial/marisaA.dat").Open();changed.WriteByte(1);}
+   rejected=false;try{RecordingPackage.Load(broken);}catch(InvalidDataException){rejected=true;}Check(rejected,"changed packaged save rejected by hash");
+   var packedSession=new FileGameSession(fakeExe,Path.Combine(output,"packed-session"),packed,unpack,replay.Identity);
+   packedSession.StartAsync().GetAwaiter().GetResult();
+   Check(File.ReadAllBytes(Path.Combine(packedSession.SessionDirectory,"source.krec")).SequenceEqual(data),"game receives unpacked legacy wire format");
+   packedSession.StopAsync().GetAwaiter().GetResult();
    AppBuilder.Configure<App>().UseSkia().UseHeadless(new(){UseHeadlessDrawing=false}).SetupWithoutStarting();
    var window=new MainWindow();window.Show();var open=window.OpenPathAsync(replayPath);
    while(!open.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}open.GetAwaiter().GetResult();Dispatcher.UIThread.RunJobs();
