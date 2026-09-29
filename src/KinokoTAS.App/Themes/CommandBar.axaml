@@ -1,5 +1,5 @@
 <!-- Copyright (c) Pixeval. Licensed under GPL-3.0. -->
-<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Styles.Resources><ResourceDictionary>
     <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
     <ControlTheme
         x:Key="{x:Type CommandBar}"
@@ -26,4 +26,35 @@
         <Setter Property="Margin" Value="0,4" />
     </ControlTheme>
 
-</ResourceDictionary>
+</ResourceDictionary></Styles.Resources>
+
+
+    <Style Selector="CommandBarButton[IsCompact=True]">
+        <Setter Property="ToolTip.Tip" Value="{Binding $self.Label}" />
+    </Style>
+
+    <Style Selector="CommandBarToggleButton[IsCompact=True]">
+        <Setter Property="ToolTip.Tip" Value="{Binding $self.Label}" />
+    </Style>
+
+    <Style Selector="CommandBarButton[IsInOverflow=True] /template/ ContentPresenter#PART_IconPresenter">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+    </Style>
+
+    <Style Selector="CommandBarToggleButton[IsInOverflow=True] /template/ ContentPresenter#PART_IconPresenter">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+    </Style>
+
+    <Style Selector="CommandBarButton:disabled">
+        <Setter Property="Foreground" Value="{DynamicResource ButtonForegroundDisabled}" />
+    </Style>
+
+    <Style Selector="CommandBarToggleButton:disabled">
+        <Setter Property="Foreground" Value="{DynamicResource ToggleButtonForegroundDisabled}" />
+    </Style>
+
+</Styles>
+
+
