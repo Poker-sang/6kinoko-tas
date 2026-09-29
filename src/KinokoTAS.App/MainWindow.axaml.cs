@@ -5,10 +5,11 @@ public partial class MainWindow : Window {
     private bool dirty,allowClose,busy;
     private string? sourcePath;
     public MainWindow() {
-        InitializeComponent();ActionPicker.ItemsSource=Replay.Labels;
-        Timeline.CellClicked+=(frame,action)=>{if(busy)return;SelectFrame(frame);if(action>=0)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));};
+        InitializeComponent();InitializeGamePanel();ActionPicker.ItemsSource=Replay.Labels;
+        Timeline.CellClicked+=async (frame,action)=>{if(busy)return;SelectFrame(frame);if(action>=0)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));else await SeekGame(frame);};
         Timeline.Scrolled+=delta=>{FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
         Closing+=async (_,e)=> {
+            if(game is not null && !allowClose){e.Cancel=true;await EndGame(false);if(!dirty){allowClose=true;Close();}return;}
             if(allowClose || !dirty)return;
             e.Cancel=true;
             if(await ConfirmDiscard()){allowClose=true;Close();}
@@ -41,6 +42,7 @@ public partial class MainWindow : Window {
         busy=true;StatusLabel.Text="正在校验并读取录制…";
         try {
             var loaded=await Task.Run(()=>Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)?TasProject.Load(path):new TasProject(Replay.Load(path),Path.GetFileName(path)));
+            if(game is not null)await EndGame(false);
             if(Project is not null)Project.Changed-=OnChanged;
             Project=loaded;sourcePath=Path.GetFullPath(path);dirty=false;Project.Changed+=OnChanged;
             Timeline.Project=Project;Timeline.FirstFrame=0;Timeline.SelectedFrame=0;FrameScroll.Value=0;
@@ -62,7 +64,7 @@ public partial class MainWindow : Window {
         int frame=Timeline.SelectedFrame;
         FrameLabel.Text=Project.Source.Count==0?"空录制":frame.ToString("D6");
         if(Project.Source.Count>0)FrameDetails.Text=$"时间 {frame/60.0:F3} 秒\n原始 RNG 前 {Project.Source.RandomBefore(frame):X8}\n原始 RNG 后 {Project.Source.RandomAfter(frame):X8}\n原始检查值\n{Project.Source.Checkpoint(frame):X16}";
-        ValidationLabel.Text=Project.InvalidFrom is int first ? $"输入从第 {first} 帧起有变化。后续原始检查值不能验证编辑结果；需引擎重新执行。保存为 .ktas 项目。" : "原始录制校验完整。当前仅编辑输入；尚未连接游戏，不能在这里运行或逐帧推进游戏。";
+        ValidationLabel.Text=Project.InvalidFrom is int first ? $"输入从第 {first} 帧起有变化。后续原始检查值不能验证编辑结果；需引擎重新执行。保存为 .ktas 项目。" : "原始录制校验完整。连接游戏后可定位、逐帧或接管录制。";
         Timeline.InvalidateVisual();
     }
     private void SelectFrame(int f) {
@@ -96,8 +98,8 @@ public partial class MainWindow : Window {
     private void RedoClick(object? s,RoutedEventArgs e)=>Project?.Redo();
     private void HoldClick(object? s,RoutedEventArgs e)=>EditRange(true);
     private void ReleaseClick(object? s,RoutedEventArgs e)=>EditRange(false);
-    private void PreviousClick(object? s,RoutedEventArgs e)=>SelectFrame(Timeline.SelectedFrame-1);
-    private void NextClick(object? s,RoutedEventArgs e)=>SelectFrame(Timeline.SelectedFrame+1);
-    private void JumpClick(object? s,RoutedEventArgs e)=>SelectFrame((int)(JumpFrame.Value??0));
+    private async void PreviousClick(object? s,RoutedEventArgs e){SelectFrame(Timeline.SelectedFrame-1);await SeekGame(Timeline.SelectedFrame);}
+    private async void NextClick(object? s,RoutedEventArgs e){SelectFrame(Timeline.SelectedFrame+1);await SeekGame(Timeline.SelectedFrame);}
+    private async void JumpClick(object? s,RoutedEventArgs e){SelectFrame((int)(JumpFrame.Value??0));await SeekGame(Timeline.SelectedFrame);}
     private void ScrollChanged(object? s,Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e) {if(Timeline is not null){Timeline.FirstFrame=(int)e.NewValue;Timeline.InvalidateVisual();}}
 }
