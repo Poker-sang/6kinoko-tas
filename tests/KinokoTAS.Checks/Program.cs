@@ -59,7 +59,7 @@ internal static class Program {
    var externalSession=new FileGameSession(fakeExe,Path.Combine(output,"external-session"),null,Path.Combine(output,"initial"),new string('a',64),true);
    var externalConnect=window.AttachGameSessionAsync(externalSession);
    while(!externalConnect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalConnect.GetAwaiter().GetResult();
-   externalSession.ResumeAsync(1,default).GetAwaiter().GetResult();
+   var resume=externalSession.ResumeAsync(1,default);while(!resume.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}resume.GetAwaiter().GetResult();
    var before=externalSession.ReadState()!.Sequence;
    window.PauseOnDeactivateAsync().GetAwaiter().GetResult();
    Check(externalSession.ReadState()!.Sequence==before,"external window focus transfer does not pause recording");
