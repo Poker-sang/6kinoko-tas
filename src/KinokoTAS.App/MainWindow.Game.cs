@@ -79,9 +79,13 @@ public partial class MainWindow {
             if(!await ConfirmReplayEngine())return;
             replay=Path.Combine(sessions,"source-"+Guid.NewGuid().ToString("N")+".krec");Project.ExportSource(replay);identity=Project.Source.Identity;
         }
-        await EndGame(false);game=new FileGameSession(exe,Path.Combine(sessions,"session-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")[..6]),replay,initial,identity);
+        var session=new FileGameSession(exe,Path.Combine(sessions,"session-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")[..6]),replay,initial,identity);
+        await AttachGameSessionAsync(session);
+    }
+    public async Task AttachGameSessionAsync(FileGameSession session) {
+        await EndGame(false);game=session;
         GameStatus.Text="启动引擎，等待首帧…";previewCount=-1;gameKeys.Clear();
-        await game.StartAsync();EngineLabel.Text=recording?"新录制 · 已暂停":"回放 · 已暂停";
+        await game.StartAsync();EngineLabel.Text=session.IsLive?"新录制 · 已暂停":"回放 · 已暂停";
     }
     uint CurrentMask() {
         if(!GamePanel.IsFocused)return 0;uint m=0;
@@ -110,6 +114,7 @@ public partial class MainWindow {
         using var token=new CancellationTokenSource();seeking=token;
         try{GameStatus.Text="正在重播定位…";await game.SeekAsync(frame,token.Token);}finally{seeking=null;}
     });}
+    public Task StopGameSessionAsync()=>EndGame(false);
     async Task EndGame(bool load) {
         if(game is null)return;var old=game;game=null;gameKeys.Clear();
         try {string branch=await old.StopAsync();EngineLabel.Text="分支已保存";GameStatus.Text=branch;if(load)await OpenPathAsync(branch);}

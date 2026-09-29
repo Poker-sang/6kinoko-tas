@@ -37,7 +37,7 @@ internal static class Program {
    string atomic=Path.Combine(output,"atomic.txt");File.WriteAllText(atomic,"keep");try{AtomicFile.Write(atomic,s=>throw new IOException("injected"));}catch(IOException){}
    Check(File.ReadAllText(atomic)=="keep","failed save preserves old file");
    if(args.Length>1){var real=Replay.Load(args[1]);Check(real.Count>0,"user recording read-only: "+real.Count+" frames");}
-   ProtocolCheck(output,replayPath).GetAwaiter().GetResult();
+   string fakeExe=ProtocolCheck(output,replayPath).GetAwaiter().GetResult();
    AppBuilder.Configure<App>().UseSkia().UseHeadless(new(){UseHeadlessDrawing=false}).SetupWithoutStarting();
    var window=new MainWindow();window.Show();var open=window.OpenPathAsync(replayPath);
    while(!open.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}open.GetAwaiter().GetResult();Dispatcher.UIThread.RunJobs();
@@ -46,7 +46,13 @@ internal static class Program {
    var point=timeline.TranslatePoint(new Point(TimelineControl.FrameWidth+4*TimelineControl.CellWidth+20,TimelineControl.HeaderHeight+10),window)!.Value;
    window.MouseDown(point,MouseButton.Left);window.MouseUp(point,MouseButton.Left);Dispatcher.UIThread.RunJobs();
    Check(window.Project!.IsEdited(0,4) && !window.Project.Down(0,4),"timeline click edits selected action");
+   var uiSession=new FileGameSession(fakeExe,Path.Combine(output,"ui-session"),replayPath,Path.Combine(output,"initial"),new string('a',64));
+   var connect=window.AttachGameSessionAsync(uiSession);
+   while(!connect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}connect.GetAwaiter().GetResult();
+   for(int i=0;i<20;i++){Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}
+   Check(window.FindControl<Image>("GameImage")!.Source is not null,"embedded preview arrives in UI");
    using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+   var stop=window.StopGameSessionAsync();while(!stop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}stop.GetAwaiter().GetResult();
    window.Project.Undo();Check(window.Project.EditCount==0,"UI undo");
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
   }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
@@ -72,7 +78,7 @@ internal static class Program {
    Thread.Sleep(2);
   }return 2;
  }
- static async Task ProtocolCheck(string output,string replay) {
+ static async Task<string> ProtocolCheck(string output,string replay) {
   var fake=Path.Combine(output,"fake-engine");Directory.CreateDirectory(fake);
   foreach(string f in Directory.GetFiles(AppContext.BaseDirectory))File.Copy(f,Path.Combine(fake,Path.GetFileName(f)));
   foreach(var n in new[]{"6kinoko_a.dat","6kinoko_b.dat","6kinoko_c.dat"})File.WriteAllText(Path.Combine(fake,n),"fixture");
@@ -86,5 +92,6 @@ internal static class Program {
   await session.StepAsync(new bool[19],default);Check(session.ReadState()?.Completed==4,"single frame acknowledgment");
   string branch=await session.StopAsync();Check(Replay.Load(branch).Count==4,"branch finalized before load");
   Check(File.ReadAllText(Path.Combine(initial,"marisaA.dat"))=="original","initial save untouched");
+  return exe;
  }
 }
