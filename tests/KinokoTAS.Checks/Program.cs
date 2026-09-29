@@ -38,6 +38,9 @@ internal static class Program {
    string atomic=Path.Combine(output,"atomic.txt");File.WriteAllText(atomic,"keep");try{AtomicFile.Write(atomic,s=>throw new IOException("injected"));}catch(IOException){}
    Check(File.ReadAllText(atomic)=="keep","failed save preserves old file");
    if(args.Length>1){var real=Replay.Load(args[1]);Check(real.Count>0,"user recording read-only: "+real.Count+" frames");}
+   string liveFile=Path.Combine(output,"partial.krec");File.WriteAllBytes(liveFile,data[..(Replay.HeaderSize+Replay.RecordSize+17)]);
+   var liveReader=new LiveTimeline();liveReader.Read(liveFile,2);Check(liveReader.Masks.Count==1,"live reader ignores incomplete record");
+   File.WriteAllBytes(liveFile,data[..(Replay.HeaderSize+2*Replay.RecordSize)]);liveReader.Read(liveFile,2);Check(liveReader.Masks.Count==2 && (liveReader.Masks[1]&(1u<<4))!=0,"live reader incrementally appends validated input");
    string fakeExe=ProtocolCheck(output,replayPath).GetAwaiter().GetResult();
    var marks=new[]{new FrameBookmark(2,"Boss 前"),new FrameBookmark(10,"重点")};
    var bundle=RecordingLibrary.SaveBundle(output,replay,Path.Combine(output,"initial"),marks);
@@ -110,7 +113,13 @@ internal static class Program {
    var advance=externalSession.StepAsync(new bool[19],default);while(!advance.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}advance.GetAwaiter().GetResult();
    var goBack=window.ReturnSelectedBookmarkAsync();while(!goBack.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}goBack.GetAwaiter().GetResult();
    Check(window.FindControl<NumericUpDown>("JumpFrame")!.Value==marked.Frame,"live bookmark return saves then reopens at selected frame");
-   Check(Replay.Load(externalSession.BranchPath).Count>marked.Frame+1,"return preserves input after bookmarked frame in original branch");
+   Check(Replay.Load(externalSession.LastRecoveryPath!).Count>marked.Frame+1,"return preserves input after bookmarked frame in original branch");
+   window.RefreshGameView();
+   Check(window.FindControl<TimelineControl>("Timeline")!.Playhead==marked.Frame,"playhead follows seek independently of selection");
+   var overwrite=externalSession.TakeoverAsync();while(!overwrite.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}overwrite.GetAwaiter().GetResult();
+   var newFrame=externalSession.StepAsync(new bool[19],default);while(!newFrame.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}newFrame.GetAwaiter().GetResult();
+   window.RefreshGameView();
+   Check(window.FindControl<TimelineControl>("Timeline")!.FrameCount==marked.Frame+2,"live timeline replaces old tail with new completed frames");
    var externalStop=window.StopGameSessionAsync();while(!externalStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalStop.GetAwaiter().GetResult();
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
   }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
@@ -120,6 +129,7 @@ internal static class Program {
   string Arg(string name)=>args[Array.IndexOf(args,name)+1];
   string bridge=Arg("--tas-dir"),output=Arg("--tas-output");long seq=0,count=0,target=1;bool live=args.Contains("--record"),run=false;
   if(args.Contains("--tas-window"))File.WriteAllText(Path.Combine(Directory.GetParent(Directory.GetParent(bridge)!.FullName)!.FullName,"external-window.txt"),"yes");
+  long total=live?0:Replay.Load(Arg("--replay")).Count;
   for(int tick=0;tick<15000;tick++) {
    try{var parts=File.ReadAllText(Path.Combine(bridge,"command.txt")).Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries);
     if(parts.Length==3 && long.Parse(parts[0])>seq){seq=long.Parse(parts[0]);switch(parts[1]){
@@ -130,9 +140,11 @@ internal static class Program {
      case "takeover":live=true;run=false;target=count;break;
     }}
    }catch(IOException){}
-   if(run||count<target)count++;
+   if((run||count<target)&&(live||count<total))count++;
+   if(!live && count>=total){run=false;target=count;}
    string phase=(run||count<target)?(live?"live":"playing"):(live?"live-paused":"paused");
-   try {AtomicFile.Write(Path.Combine(bridge,"state.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"KTAS1 {seq} {count} 180 {phase}\n");});
+   try {AtomicFile.Write(output,s=>{var bytes=Fixture((int)count);s.Write(bytes.AsSpan(0,bytes.Length-17));});
+   AtomicFile.Write(Path.Combine(bridge,"state.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"KTAS1 {seq} {count} {total} {phase}\n");});
    AtomicFile.Write(Path.Combine(bridge,"image.rgba"),s=>{using var w=new BinaryWriter(s,System.Text.Encoding.UTF8,true);w.Write("KTASIMG1"u8);w.Write(count);w.Write(1);w.Write(1);w.Write(new byte[]{10,20,30,255});});}catch(IOException){}catch(UnauthorizedAccessException){}
    Thread.Sleep(2);
   }return 2;

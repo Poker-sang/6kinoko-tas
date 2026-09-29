@@ -70,7 +70,7 @@ public partial class MainWindow : Window {
         f=Math.Clamp(f,0,Timeline.FrameCount-1);Timeline.SelectedFrame=f;JumpFrame.Value=f;RangeStart.Value=RangeEnd.Value=f;
         int rows=Math.Max(1,(int)((Timeline.Bounds.Width-TimelineControl.FrameWidth)/TimelineControl.CellWidth));
         if(f<Timeline.FirstFrame || f>=Timeline.FirstFrame+rows)FrameScroll.Value=f;
-        Refresh();
+        if(Timeline.LiveMasks is null)Refresh();else Timeline.InvalidateVisual();
     }
     private async Task SaveProject() {
         if(Project is null || busy)return;
