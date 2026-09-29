@@ -115,7 +115,7 @@ public partial class MainWindow {
     public void RefreshGameView() {
         CancelOperationButton.IsEnabled=seeking is not null;
         ApplyEditsButton.IsEnabled=!gameCommand && !busy && Project?.InvalidFrom is not null && game?.IsLive!=true;
-        RestoreOverwriteButton.IsEnabled=!gameCommand && !busy && recoveries.Count>0;
+        RestoreOverwriteButton.IsEnabled=!gameCommand && !busy && game is not null && recoveries.Count>0;
         RestartGameButton.IsEnabled=game is not null?!game.IsRunning:Project is not null;
         if(game is null)return;
         if(!game.IsRunning){EngineLabel.Text="游戏已关闭";GameStatus.Text=operationError??"点击“重新启动游戏”恢复当前录制。";return;}
@@ -159,7 +159,7 @@ public partial class MainWindow {
         finally {await old.DisposeAsync();}
     }
     
-    async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(()=>LaunchGame(true));
+    async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(!dirty||await ConfirmDiscard())await LaunchGame(true);});
     async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(1,default);GamePanel.Focus();});
     async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}
     async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});

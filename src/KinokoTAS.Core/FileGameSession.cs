@@ -47,7 +47,7 @@ public sealed class FileGameSession : IGameSession {
         var files=Directory.GetFiles(Path.Combine(root,"initial")).Order().Select(p=>new InitialFile(Path.GetFileName(p),HashFile(p))).ToArray();
         File.WriteAllText(Path.Combine(root,"session.json"),JsonSerializer.Serialize(new SessionMetadata(1,identity,EngineHash,replayPath??"",files),new JsonSerializerOptions{WriteIndented=true}));
     }
-    public FileGameSession CreatePlaybackSession(string replayPath)=>new(executable,root+"-branch-"+Guid.NewGuid().ToString("N")[..8],replayPath,Path.Combine(root,"initial"),identity,ExternalWindow);
+    public FileGameSession CreatePlaybackSession(string replayPath)=>new(executable,Path.Combine(Path.GetDirectoryName(root)!,"session-"+Guid.NewGuid().ToString("N")),replayPath,Path.Combine(root,"initial"),identity,ExternalWindow);
     public async Task<FileGameSession> ResimulateAsync(TasProject project,IProgress<SimulationProgress>? progress=null,CancellationToken ct=default) {
         if(project.InvalidFrom is null)throw new InvalidOperationException("没有待执行的输入修改。");
         if(IsLive)throw new InvalidOperationException("请先暂停录制并切换回放，再修改输入。");
@@ -103,7 +103,7 @@ public sealed class FileGameSession : IGameSession {
         try {
             await WaitAsync(s=>s.Completed>=1 && s.Phase.EndsWith("paused"),TimeSpan.FromSeconds(30),ct);
             if(editPlan is not null && (!File.Exists(Path.Combine(bridge,"capabilities.txt")) || !File.ReadAllText(Path.Combine(bridge,"capabilities.txt")).Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries).Contains("edits-v1")))
-                throw new NotSupportedException("游戏版本不支持输入重新模拟，请选择新版游戏程序。");
+                throw new NotSupportedException("游戏版本不支持输入重新模拟，请用新版游戏程序重新打开录制。");
         }
         catch{await DisposeAsync();throw;}
     }

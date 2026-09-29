@@ -5,7 +5,7 @@ public partial class MainWindow {
     ContentDialogHost? dialogHost;
     public async Task<bool> ConfirmContentAsync(string title,string message,string accept,string cancel) {
         if(dialogHost?.IsOpen==true)return false;
-        if(game is not null){gameKeys.Clear();game.Input(0);await game.PauseAsync(default);}
+        if(game?.IsRunning==true){gameKeys.Clear();game.Input(0);await game.PauseAsync(default);}
         dialogHost??=new ContentDialogHost(this);
         var dialog=new ContentDialog{Title=title,Content=message,PrimaryButtonText=accept,CloseButtonText=cancel,DefaultButton=ContentDialogButton.Close,IsLightDismissEnabled=false};
         var body=Content as Control;var previous=body?.IsEnabled??true;

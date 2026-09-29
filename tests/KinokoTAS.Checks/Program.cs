@@ -113,6 +113,13 @@ internal static class Program {
    var cover=window.ToggleRecordingAsync();while(!cover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}cover.GetAwaiter().GetResult();
    var undoCover=window.RestoreOverwriteAsync();while(!undoCover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}undoCover.GetAwaiter().GetResult();
    Check(window.Project.Source.Bytes.Span.SequenceEqual(beforeCover),"record takeover undo restores whole source tail");
+   // Shortcuts are routed through the preview, while text undo remains local.
+   var panel=window.FindControl<Border>("GamePanel")!;panel.Focus();
+   window.KeyPress(Key.F10,RawInputModifiers.None);
+   var keyDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(window.FindControl<TimelineControl>("Timeline")!.Playhead<1 && DateTime.UtcNow<keyDeadline){Dispatcher.UIThread.RunJobs();window.RefreshGameView();Thread.Sleep(5);}
+   Check(window.FindControl<TimelineControl>("Timeline")!.Playhead==1,"F10 steps once with preview focus");
+   window.KeyRelease(Key.F10,RawInputModifiers.None);
    var editingStop=window.StopGameSessionAsync();while(!editingStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}editingStop.GetAwaiter().GetResult();
    window.Hide();window=new MainWindow();window.Show();
    var externalSession=new FileGameSession(fakeExe,Path.Combine(output,"external-session"),null,Path.Combine(output,"initial"),new string('a',64),true);
@@ -150,7 +157,7 @@ internal static class Program {
   uint[]? plan=null;int first=-1;
   var planPath=Path.Combine(bridge,"edit.bin");
   if(File.Exists(planPath)){using var reader=new BinaryReader(File.OpenRead(planPath));reader.ReadBytes(8);int length=reader.ReadInt32();first=reader.ReadInt32();plan=new uint[length];for(int i=0;i<length;i++)plan[i]=reader.ReadUInt32();}
-  File.WriteAllText(Path.Combine(bridge,"capabilities.txt"),"KTAS1 edits-v1");
+  if(!File.Exists(Path.Combine(Arg("--save-dir"),"no-edits.dat")))File.WriteAllText(Path.Combine(bridge,"capabilities.txt"),"KTAS1 edits-v1");
   var recorded=new List<uint>();
   byte[] Current()=>Fixture((int)count,recorded.ToArray());
   for(int tick=0;tick<15000;tick++) {
@@ -170,6 +177,7 @@ internal static class Program {
     else {try{var input=File.ReadAllText(Path.Combine(bridge,"input.txt")).Split(' ');value=uint.Parse(input[1]);}catch(IOException){}}
     recorded.Add(value);count++;
    }
+   if(plan is null && source?.Checkpoint(0)>0 && count>=2 && File.Exists(Path.Combine(Arg("--save-dir"),"fail-verification.dat"))){File.WriteAllText(Path.Combine(bridge,"error.txt"),"Injected checkpoint divergence");return 3;}
    if(!live && count>=total){run=false;target=count;}
    string phase=(run||count<target)?(live?"live":"playing"):(live?"live-paused":"paused");
    try {AtomicFile.Write(output,s=>{var bytes=Current();s.Write(bytes.AsSpan(0,bytes.Length-17));});
@@ -216,6 +224,12 @@ internal static class Program {
   try{await editSession.SeekAsync(170,seekCancel.Token);throw new Exception("Seek cancellation ignored");}catch(OperationCanceledException){}
   editSession.Progress-=CancelSeek;
   Check(editSession.ReadState()!.Phase=="paused","cancelled seek pauses engine at acknowledged boundary");
+  File.WriteAllText(Path.Combine(editSession.SessionDirectory,"initial","fail-verification.dat"),"fixture");
+  try{await editSession.ResimulateAsync(edited);throw new Exception("Verification failure ignored");}catch(InvalidDataException){}
+  Check(editSession.IsRunning && edited.EditCount==6,"failed verification cannot replace original or clear edits");
+  File.WriteAllText(Path.Combine(editSession.SessionDirectory,"initial","no-edits.dat"),"fixture");
+  try{await editSession.ResimulateAsync(edited);throw new Exception("Old engine accepted");}catch(NotSupportedException){}
+  Check(editSession.IsRunning,"unsupported engine fails explicitly and preserves original session");
   return exe;
  }
  sealed class TestProgress(Action<SimulationProgress> callback):IProgress<SimulationProgress>{public void Report(SimulationProgress value)=>callback(value);}
