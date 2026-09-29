@@ -34,7 +34,7 @@ public partial class MainWindow {
     async Task<string?> PickGame() {
         if(gameExe is not null && File.Exists(gameExe))return gameExe;
         var paths=await StorageProvider.OpenFilePickerAsync(new(){Title="选择游戏程序 kinoko_modern_gpu.exe（不是 .ktas 录制项目）",AllowMultiple=false});
-        if(paths.Count==0)return null;gameExe=paths[0].TryGetLocalPath();SaveSettings();return gameExe;
+        if(paths.Count==0)return null;gameExe=paths[0].TryGetLocalPath();SaveSettings();UpdateGamePath();return gameExe;
     }
     async Task<string?> InitialDirectory(string? replay) {
         if(replay is not null) {
@@ -98,6 +98,7 @@ public partial class MainWindow {
         GameStatus.Text="启动引擎，等待首帧…";previewCount=-1;gameKeys.Clear();
         try {await session.StartAsync();}
         catch {await session.DisposeAsync();EngineLabel.Text="启动失败";throw;}
+        if(session.IsLive){bookmarks.Clear();bookmarkFile=Path.Combine(session.SessionDirectory,"bookmarks.json");}
         game=session;GameImage.IsVisible=!session.ExternalWindow;ExternalHint.IsVisible=session.ExternalWindow;EmbeddedOption.IsEnabled=false;EngineLabel.Text=session.IsLive?"新录制 · 已暂停":"回放 · 已暂停";
     }
     uint CurrentMask() {
@@ -133,7 +134,13 @@ public partial class MainWindow {
     public Task StopGameSessionAsync()=>EndGame(false);
     async Task EndGame(bool load) {
         if(game is null)return;var old=game;game=null;gameKeys.Clear();EmbeddedOption.IsEnabled=true;
-        try {string branch=await old.StopAsync();EngineLabel.Text="录制已保存";GameStatus.Text=branch;if(load)await OpenPathAsync(branch);}
+        try {string branch=await old.StopAsync();
+            var savedReplay=Replay.Load(branch);var retained=bookmarks.Where(m=>m.Frame<savedReplay.Count).ToArray();
+            RecordingLibrary.SaveBookmarks(BookmarkCache(savedReplay),retained);
+            RecordingLibrary.SaveBookmarks(branch+".bookmarks.json",retained);
+            EngineLabel.Text="录制已保存";GameStatus.Text=branch;ShowSaved(branch);
+            if(load)await OpenPathAsync(branch);
+        }
         finally {await old.DisposeAsync();}
     }
     
@@ -142,7 +149,7 @@ public partial class MainWindow {
     async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}
     async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});
     async void TakeoverClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null){await game.TakeoverAsync();GamePanel.Focus();}});
-    async void StopGameClick(object? s,RoutedEventArgs e)=>await Operate(()=>EndGame(true));
+    
     void GamePointerPressed(object? s,PointerPressedEventArgs e){GamePanel.Focus();e.Handled=true;}
     void GameKeyDown(object? s,KeyEventArgs e){if(e.Key==Key.F10){StepGameClick(s,e);e.Handled=true;return;}gameKeys.Add(e.Key);e.Handled=true;}
     void GameKeyUp(object? s,KeyEventArgs e){gameKeys.Remove(e.Key);e.Handled=true;}

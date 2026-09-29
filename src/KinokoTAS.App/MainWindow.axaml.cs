@@ -5,7 +5,7 @@ public partial class MainWindow : Window {
     private bool dirty,allowClose,busy;
     private string? sourcePath;
     public MainWindow() {
-        InitializeComponent();InitializeGamePanel();ActionPicker.ItemsSource=Replay.Labels;
+        InitializeComponent();InitializeGamePanel();InitializeLibrary();ActionPicker.ItemsSource=Replay.Labels;
         Timeline.CellClicked+=async (frame,action)=>{if(busy)return;SelectFrame(frame);if(action>=0)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));else await SeekGame(frame);};
         Timeline.Scrolled+=delta=>{FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
         Closing+=async (_,e)=> {
@@ -17,7 +17,7 @@ public partial class MainWindow : Window {
         KeyDown+=async (_,e)=> {
             if(!e.KeyModifiers.HasFlag(KeyModifiers.Control))return;
             if(e.Key==Key.O){e.Handled=true;await OpenPicker();}
-            if(e.Key==Key.S){e.Handled=true;await SaveProject();}
+            if(e.Key==Key.S){e.Handled=true;await Operate(SaveRecordingAsync);} 
             if(e.Key==Key.Z){e.Handled=true;Project?.Undo();}
             if(e.Key==Key.Y){e.Handled=true;Project?.Redo();}
         };
@@ -48,6 +48,7 @@ public partial class MainWindow : Window {
             if(game is not null)await EndGame(false);
             if(Project is not null)Project.Changed-=OnChanged;
             Project=loaded;sourcePath=Path.GetFullPath(path);dirty=false;Project.Changed+=OnChanged;
+            LoadBookmarksFor(Project.Source,sourcePath);
             Timeline.Project=Project;Timeline.FirstFrame=0;Timeline.SelectedFrame=0;FrameScroll.Value=0;
             FrameScroll.Maximum=Math.Max(0,Project.Source.Count-1);FrameScroll.ViewportSize=20;
             JumpFrame.Maximum=RangeStart.Maximum=RangeEnd.Maximum=Math.Max(0,Project.Source.Count-1);
@@ -82,7 +83,7 @@ public partial class MainWindow : Window {
         var file=await StorageProvider.SaveFilePickerAsync(new(){Title="另存 TAS 项目",SuggestedFileName=Path.GetFileNameWithoutExtension(Project.SourceName)+".ktas",DefaultExtension="ktas",FileTypeChoices=[new("TAS 项目"){Patterns=["*.ktas"]}]});
         if(file?.TryGetLocalPath() is not string path)return;
         if(!Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)){StatusLabel.Text="项目必须使用 .ktas 扩展名。";return;}
-        try{Project.Save(path);dirty=false;StatusLabel.Text="项目已保存："+path;Refresh();}catch(Exception ex){StatusLabel.Text="保存失败："+ex.Message;}
+        try{Project.Save(path);RecordingLibrary.SaveBookmarks(path+".bookmarks.json",bookmarks);ShowSaved(path);dirty=false;StatusLabel.Text="项目已保存："+path;Refresh();}catch(Exception ex){StatusLabel.Text="保存失败："+ex.Message;}
     }
     private async void ExportClick(object? s,RoutedEventArgs e) {
         if(Project is null || busy)return;
