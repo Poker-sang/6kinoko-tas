@@ -163,6 +163,11 @@ internal static class Program {
   await session.SeekAsync(2);Check(session.ReadState()?.Completed==3,"backward seek restarts and restores");
   await session.TakeoverAsync();Check(session.IsLive && session.ReadState()?.Phase=="live-paused","takeover acknowledgment");
   await session.StepAsync(new bool[19],default);Check(session.ReadState()?.Completed==4,"single frame acknowledgment");
+  string stateFile=Directory.GetFiles(session.SessionDirectory,"state.txt",SearchOption.AllDirectories).OrderBy(File.GetLastWriteTimeUtc).Last();
+  File.WriteAllText(Path.Combine(Path.GetDirectoryName(stateFile)!,"command.txt"),"999 stop 0\n");
+  var exitDeadline=DateTime.UtcNow.AddSeconds(10);while(session.IsRunning && DateTime.UtcNow<exitDeadline)await Task.Delay(10);
+  Check(!session.IsRunning,"external game close detected");
+  await session.RestartAsync();Check(session.IsRunning && session.ReadState()?.Completed==4 && !session.IsLive,"restart restores closed live recording at last completed frame");
   string branch=await session.StopAsync();Check(Replay.Load(branch).Count==4,"branch finalized before load");
   Check(File.ReadAllText(Path.Combine(initial,"marisaA.dat"))=="original","initial save untouched");
   return exe;
