@@ -115,11 +115,11 @@ internal static class Program {
    Check(window.Project.Source.Bytes.Span.SequenceEqual(beforeCover),"record takeover undo restores whole source tail");
    // Shortcuts are routed through the preview, while text undo remains local.
    var panel=window.FindControl<Border>("GamePanel")!;panel.Focus();
-   window.KeyPress(Key.F10,RawInputModifiers.None);
+   window.KeyPress(Key.F10,RawInputModifiers.None,PhysicalKey.F10,null);
    var keyDeadline=DateTime.UtcNow.AddSeconds(5);
    while(window.FindControl<TimelineControl>("Timeline")!.Playhead<1 && DateTime.UtcNow<keyDeadline){Dispatcher.UIThread.RunJobs();window.RefreshGameView();Thread.Sleep(5);}
    Check(window.FindControl<TimelineControl>("Timeline")!.Playhead==1,"F10 steps once with preview focus");
-   window.KeyRelease(Key.F10,RawInputModifiers.None);
+   window.KeyRelease(Key.F10,RawInputModifiers.None,PhysicalKey.F10,null);
    var editingStop=window.StopGameSessionAsync();while(!editingStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}editingStop.GetAwaiter().GetResult();
    window.Hide();window=new MainWindow();window.Show();
    var externalSession=new FileGameSession(fakeExe,Path.Combine(output,"external-session"),null,Path.Combine(output,"initial"),new string('a',64),true);
@@ -235,3 +235,4 @@ internal static class Program {
  sealed class TestProgress(Action<SimulationProgress> callback):IProgress<SimulationProgress>{public void Report(SimulationProgress value)=>callback(value);}
 
 }
+
