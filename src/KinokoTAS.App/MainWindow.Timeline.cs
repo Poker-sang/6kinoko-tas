@@ -1,0 +1,41 @@
+using Avalonia.Interactivity;
+using KinokoTAS.Core;
+namespace KinokoTAS.App;
+public partial class MainWindow {
+    LiveTimeline liveTimeline=new();string? timelineSource;bool followScroll;
+    void UpdatePlaybackProject() {
+        if(game?.PlaybackSource is not string path || timelineSource==path)return;
+        var replay=Replay.Load(path);
+        // Preserve a loaded project's draft when connecting its unchanged source.
+        if(Project is null || !Project.Source.Bytes.Span.SequenceEqual(replay.Bytes.Span)){
+            if(Project is not null)Project.Changed-=OnChanged;
+            Project=new TasProject(replay,"当前录制.krec");Project.Changed+=OnChanged;dirty=false;Timeline.Project=Project;
+        }
+        sourcePath=path;timelineSource=path;Timeline.LiveMasks=null;
+    }
+    void RefreshTimeline(SessionState state) {
+        if(game is null)return;
+        if(game.IsLive){liveTimeline.Read(game.BranchPath,state.Completed);Timeline.LiveMasks=liveTimeline.Masks;}
+        else UpdatePlaybackProject();
+        Timeline.Playhead=checked((int)state.Completed-1);Timeline.Bookmarks=bookmarks;
+        int count=Timeline.FrameCount;
+        JumpFrame.Maximum=RangeStart.Maximum=RangeEnd.Maximum=Math.Max(0,count-1);
+        FrameScroll.Maximum=Math.Max(0,count-1);FrameScroll.ViewportSize=Math.Max(1,(Timeline.Bounds.Width-TimelineControl.FrameWidth)/TimelineControl.CellWidth);
+        if(FollowLatest.IsChecked==true){int target=game.IsLive?count-1:Timeline.Playhead;int visible=Math.Max(1,(int)FrameScroll.ViewportSize);if(target<Timeline.FirstFrame||target>=Timeline.FirstFrame+visible-4){followScroll=true;FrameScroll.Value=Math.Max(0,target-visible+5);followScroll=false;}}
+        DocumentLabel.Text=$"当前录制 · {count:N0} 帧 · 红线：当前帧 · 金色：书签 · 暗色：未录制";
+        Timeline.InvalidateVisual();
+    }
+    public async Task ToggleRecordingAsync() {
+        if(game is null)throw new InvalidOperationException("先新建或打开录制。");
+        if(game.IsLive){await game.SwitchToPlaybackAsync();UpdatePlaybackProject();}
+        else {
+            if(dirty && Project is not null)Project.Save(Path.Combine(game.SessionDirectory,"draft-"+Guid.NewGuid().ToString("N")+".ktas"));
+            await game.TakeoverAsync();var boundary=game.ReadState()!.Completed;
+            foreach(var mark in bookmarks.Where(m=>m.Frame>=boundary).ToArray())bookmarks.Remove(mark);
+            liveTimeline=new();timelineSource=null;FollowLatest.IsChecked=true;await game.ResumeAsync(1,default);
+        }
+        RecordToggle.IsChecked=game.IsLive;RefreshGameView();
+    }
+    public async Task ReplayAllAsync(){if(game is null)throw new InvalidOperationException("先新建或打开录制。");await game.ReplayAllAsync();UpdatePlaybackProject();FollowLatest.IsChecked=true;RefreshGameView();}
+    async void ReplayAllClick(object? s,RoutedEventArgs e)=>await Operate(ReplayAllAsync);
+}

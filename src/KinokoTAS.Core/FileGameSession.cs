@@ -11,7 +11,10 @@ public sealed record SessionMetadata(int Version,string Identity,string EngineSh
 /// <summary>Version 1 local directory transport, one owned child process. No game code in the UI.</summary>
 public sealed class FileGameSession : IGameSession {
     readonly string executable,root,identity;
-    readonly string? source;
+    string? source;
+    public string? PlaybackSource=>source;
+    public string CurrentRecordingPath=>IsLive?BranchPath:source??BranchPath;
+    public string? LastRecoveryPath {get;private set;}
     readonly SemaphoreSlim commands=new(1,1);
     Process? process;
     string run="",bridge="";
@@ -105,13 +108,23 @@ public sealed class FileGameSession : IGameSession {
         return State(await SendAsync("run",0,s=>!s.Phase.EndsWith("paused"),ct),identity);
     }
     public async Task SeekAsync(long frame,CancellationToken ct=default) {
-        if(source is null||IsLive)throw new InvalidOperationException("接管/新录制中请先结束并保存分支，再打开分支定位。");
+        if(IsLive)await SealLiveAsync(ct);
+        if(source is null)throw new InvalidOperationException("尚无录制内容。");
         long target=frame+1;var replay=Replay.Load(source);if(target<1||target>replay.Count)throw new ArgumentOutOfRangeException(nameof(frame));
         await PauseAsync(ct);var state=ReadState()!;
         if(state.Completed>target){await StopAsync();await StartAsync(ct);}
         await SendAsync("target",target,s=>s.Completed==target&&s.Phase.EndsWith("paused"),ct);
     }
-    public async Task TakeoverAsync(CancellationToken ct=default) {await PauseAsync(ct);Input(0);await SendAsync("takeover",0,s=>s.Phase=="live-paused",ct);IsLive=true;}
+    async Task SealLiveAsync(CancellationToken ct) {
+        if(!IsLive)return;
+        await PauseAsync(ct);var saved=await StopAsync();LastRecoveryPath=saved;source=saved;await StartAsync(ct);
+    }
+    public async Task SwitchToPlaybackAsync(CancellationToken ct=default) {
+        if(!IsLive)return;await PauseAsync(ct);long frame=ReadState()!.Completed-1;
+        await SealLiveAsync(ct);await SeekAsync(Math.Max(0,frame),ct);
+    }
+    public async Task ReplayAllAsync(CancellationToken ct=default){await SeekAsync(0,ct);if(ReadState()!.Total>1)await ResumeAsync(1,ct);}
+    public async Task TakeoverAsync(CancellationToken ct=default) {if(IsLive)return;await PauseAsync(ct);Input(0);await SendAsync("takeover",0,s=>s.Phase=="live-paused",ct);IsLive=true;}
     public async Task<string> StopAsync() {
         if(process is null)return BranchPath;
         try {

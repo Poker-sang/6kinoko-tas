@@ -6,8 +6,8 @@ public partial class MainWindow : Window {
     private string? sourcePath;
     public MainWindow() {
         InitializeComponent();InitializeGamePanel();InitializeLibrary();ActionPicker.ItemsSource=Replay.Labels;
-        Timeline.CellClicked+=async (frame,action)=>{if(busy)return;SelectFrame(frame);if(action>=0)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));else await SeekGame(frame);};
-        Timeline.Scrolled+=delta=>{FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
+        Timeline.CellClicked+=async (frame,action)=>{if(busy)return;SelectFrame(frame);FollowLatest.IsChecked=false;if(action>=0 && Timeline.LiveMasks is null)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));else if(action<0)await SeekGame(frame);};
+        Timeline.Scrolled+=delta=>{FollowLatest.IsChecked=false;FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
         Closing+=async (_,e)=> {
             if(game is not null && !allowClose){e.Cancel=true;await EndGame(false);if(!dirty){allowClose=true;Close();}return;}
             if(allowClose || !dirty)return;
@@ -43,7 +43,7 @@ public partial class MainWindow : Window {
             if(Project is not null)Project.Changed-=OnChanged;
             Project=loaded;sourcePath=Path.GetFullPath(path);dirty=false;Project.Changed+=OnChanged;
             LoadBookmarksFor(Project.Source,sourcePath);
-            Timeline.Project=Project;Timeline.FirstFrame=0;Timeline.SelectedFrame=0;FrameScroll.Value=0;
+            Timeline.LiveMasks=null;Timeline.Project=Project;Timeline.FirstFrame=0;Timeline.SelectedFrame=0;FrameScroll.Value=0;
             FrameScroll.Maximum=Math.Max(0,Project.Source.Count-1);FrameScroll.ViewportSize=20;
             JumpFrame.Maximum=RangeStart.Maximum=RangeEnd.Maximum=Math.Max(0,Project.Source.Count-1);
             RangeStart.Value=RangeEnd.Value=JumpFrame.Value=0;
@@ -66,8 +66,8 @@ public partial class MainWindow : Window {
         Timeline.InvalidateVisual();
     }
     private void SelectFrame(int f) {
-        if(Project is null || Project.Source.Count==0)return;
-        f=Math.Clamp(f,0,Project.Source.Count-1);Timeline.SelectedFrame=f;JumpFrame.Value=f;RangeStart.Value=RangeEnd.Value=f;
+        if(Timeline.FrameCount==0)return;
+        f=Math.Clamp(f,0,Timeline.FrameCount-1);Timeline.SelectedFrame=f;JumpFrame.Value=f;RangeStart.Value=RangeEnd.Value=f;
         int rows=Math.Max(1,(int)((Timeline.Bounds.Width-TimelineControl.FrameWidth)/TimelineControl.CellWidth));
         if(f<Timeline.FirstFrame || f>=Timeline.FirstFrame+rows)FrameScroll.Value=f;
         Refresh();

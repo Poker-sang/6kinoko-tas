@@ -100,6 +100,7 @@ public partial class MainWindow {
         try {await session.StartAsync();}
         catch {await session.DisposeAsync();EngineLabel.Text="启动失败";throw;}
         if(session.IsLive){bookmarks.Clear();bookmarkFile=Path.Combine(session.SessionDirectory,"bookmarks.json");}
+        liveTimeline=new();timelineSource=null;
         game=session;GameImage.IsVisible=!session.ExternalWindow;ExternalHint.IsVisible=session.ExternalWindow;EmbeddedOption.IsEnabled=false;EngineLabel.Text=session.IsLive?"新录制 · 已暂停":"回放 · 已暂停";
     }
     uint CurrentMask() {
@@ -120,6 +121,7 @@ public partial class MainWindow {
                 if(handle!=0 && handle!=orderedGameWindow && GameWindowOrder.Attach(handle,TryGetPlatformHandle()?.Handle??0))orderedGameWindow=handle;
             }
             game.Input(CurrentMask());var state=game.ReadState();if(state is null)return;
+            RefreshTimeline(state);RecordToggle.IsChecked=game.IsLive;
             var frame=game.ExternalWindow?null:game.ReadPreview();
             if(frame is not null && frame.Completed!=previewCount) {
                 if(bitmap is null||bitmap.PixelSize.Width!=frame.Width||bitmap.PixelSize.Height!=frame.Height){bitmap?.Dispose();bitmap=new(new(frame.Width,frame.Height),new(96,96),PixelFormat.Rgba8888,AlphaFormat.Opaque);GameImage.Source=bitmap;}
@@ -136,12 +138,12 @@ public partial class MainWindow {
     }
     async Task SeekGame(int frame) {if(game is not null)await Operate(async()=>{
         using var token=new CancellationTokenSource();seeking=token;
-        try{GameStatus.Text="正在重播定位…";await game.SeekAsync(frame,token.Token);}finally{seeking=null;}
+        try{GameStatus.Text="正在重播定位…";await game.SeekAsync(frame,token.Token);UpdatePlaybackProject();RefreshGameView();}finally{seeking=null;}
     });}
     public Task StopGameSessionAsync()=>EndGame(false);
     async Task EndGame(bool load) {
         if(game is null)return;var old=game;game=null;gameKeys.Clear();EmbeddedOption.IsEnabled=true;
-        try {string branch=await old.StopAsync();
+        try {string branch=old.CurrentRecordingPath;await old.StopAsync();
             var savedReplay=Replay.Load(branch);var retained=bookmarks.Where(m=>m.Frame<savedReplay.Count).ToArray();
             RecordingLibrary.SaveBookmarks(BookmarkCache(savedReplay),retained);
             RecordingLibrary.SaveBookmarks(branch+".bookmarks.json",retained);
@@ -155,7 +157,7 @@ public partial class MainWindow {
     async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(1,default);GamePanel.Focus();});
     async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}
     async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});
-    async void TakeoverClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null){await game.TakeoverAsync();GamePanel.Focus();}});
+    async void TakeoverClick(object? s,RoutedEventArgs e)=>await Operate(ToggleRecordingAsync);
     
     void GamePointerPressed(object? s,PointerPressedEventArgs e){GamePanel.Focus();e.Handled=true;}
     void GameKeyDown(object? s,KeyEventArgs e){if(e.Key==Key.F10){StepGameClick(s,e);e.Handled=true;return;}gameKeys.Add(e.Key);e.Handled=true;}
