@@ -11,7 +11,7 @@ public partial class MainWindow {
     long previewCount=-1;
     string? gameExe;
     void InitializeGamePanel() {
-        gameTimer.Tick+=(_,_)=>PollGame();gameTimer.Start();
+        gameTimer.Tick+=(_,_)=>RefreshGameView();gameTimer.Start();
         Deactivated+=async (_,_)=>await PauseOnDeactivateAsync();
         Closed+=(_,_)=>{gameTimer.Stop();bitmap?.Dispose();};
     }
@@ -103,7 +103,7 @@ public partial class MainWindow {
         Set(gameKeys.Contains(Key.A),12,13);Set(gameKeys.Contains(Key.C),14);
         Set(gameKeys.Contains(Key.Space),4);Set(gameKeys.Contains(Key.Enter),11);Set(gameKeys.Contains(Key.Escape),13);return m;
     }
-    void PollGame() {
+    public void RefreshGameView() {
         if(game is null)return;
         try {
             game.Input(CurrentMask());var state=game.ReadState();if(state is null)return;

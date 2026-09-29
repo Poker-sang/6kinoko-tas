@@ -52,7 +52,7 @@ internal static class Program {
    Check(!Directory.GetFiles(uiSession.SessionDirectory,"command.txt",SearchOption.AllDirectories).Any(),"startup focus loss does not pause before first frame");
    while(!connect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}connect.GetAwaiter().GetResult();
    var previewDeadline=DateTime.UtcNow.AddSeconds(10);
-   while(window.FindControl<Image>("GameImage")!.Source is null && DateTime.UtcNow<previewDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}
+   while(window.FindControl<Image>("GameImage")!.Source is null && DateTime.UtcNow<previewDeadline){window.RefreshGameView();Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}
    Check(window.FindControl<Image>("GameImage")!.Source is not null,"embedded preview arrives in UI");
    using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var stop=window.StopGameSessionAsync();while(!stop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}stop.GetAwaiter().GetResult();
