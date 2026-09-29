@@ -1,0 +1,29 @@
+<!-- Copyright (c) Pixeval. Licensed under GPL-3.0. -->
+<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+    <ControlTheme
+        x:Key="{x:Type CommandBar}"
+        BasedOn="{StaticResource {x:Type CommandBar}}"
+        TargetType="{x:Type CommandBar}">
+        <Setter Property="Background" Value="Transparent" />
+    </ControlTheme>
+
+    <ControlTheme
+        x:Key="{x:Type CommandBarToggleButton}"
+        BasedOn="{StaticResource {x:Type CommandBarToggleButton}}"
+        TargetType="{x:Type CommandBarToggleButton}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+        <Setter Property="Margin" Value="0,4" />
+    </ControlTheme>
+
+    <ControlTheme
+        x:Key="{x:Type CommandBarButton}"
+        BasedOn="{StaticResource {x:Type CommandBarButton}}"
+        TargetType="{x:Type CommandBarButton}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+        <Setter Property="Margin" Value="0,4" />
+    </ControlTheme>
+
+</ResourceDictionary>
