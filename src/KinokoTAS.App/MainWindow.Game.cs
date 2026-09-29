@@ -7,6 +7,7 @@ public partial class MainWindow {
     readonly HashSet<Key> gameKeys=[];
     WriteableBitmap? bitmap;
     bool gameCommand;
+    CancellationTokenSource? seeking;
     long previewCount=-1;
     string? gameExe;
     void InitializeGamePanel() {
@@ -102,10 +103,13 @@ public partial class MainWindow {
                 previewCount=frame.Completed;GameImage.InvalidateVisual();
             }
             EngineLabel.Text=$"{state.Phase} · 已完成 {state.Completed} 帧";
-            GameStatus.Text=$"画面帧 {previewCount-1} / 逻辑帧 {state.Completed-1} · "+(game.IsLive?"接管输入：方向键、Z 跳跃/确认、X 攻击/加速/搬运、A 暂停、C 道具。点击画面获取焦点。":"点击时间轴帧号或定位按钮查看。回退会从头重播，请等待。");
+            GameStatus.Text=$"画面帧 {previewCount-1} / 逻辑帧 {state.Completed-1} · "+(game.IsLive?"接管输入：方向键、Z 跳跃/确认、X 攻击/加速/搬运、A 暂停、C 道具、F10 执行一帧。点击画面获取焦点。":"点击时间轴帧号或定位按钮查看。回退会从头重播，请等待。");
         }catch(Exception ex){EngineLabel.Text="引擎错误";GameStatus.Text=ex.Message;}
     }
-    async Task SeekGame(int frame) {if(game is not null)await Operate(async()=>{GameStatus.Text="正在重播定位…";await game.SeekAsync(frame);});}
+    async Task SeekGame(int frame) {if(game is not null)await Operate(async()=>{
+        using var token=new CancellationTokenSource();seeking=token;
+        try{GameStatus.Text="正在重播定位…";await game.SeekAsync(frame,token.Token);}finally{seeking=null;}
+    });}
     async Task EndGame(bool load) {
         if(game is null)return;var old=game;game=null;gameKeys.Clear();
         try {string branch=await old.StopAsync();EngineLabel.Text="分支已保存";GameStatus.Text=branch;if(load)await OpenPathAsync(branch);}
@@ -114,12 +118,12 @@ public partial class MainWindow {
     async void ConnectGameClick(object? s,RoutedEventArgs e)=>await Operate(()=>LaunchGame(false));
     async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(()=>LaunchGame(true));
     async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(1,default);GamePanel.Focus();});
-    async void PauseGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null)await game.PauseAsync(default);});
+    async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}
     async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});
     async void TakeoverClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null){await game.TakeoverAsync();GamePanel.Focus();}});
     async void StopGameClick(object? s,RoutedEventArgs e)=>await Operate(()=>EndGame(true));
     void GamePointerPressed(object? s,PointerPressedEventArgs e){GamePanel.Focus();e.Handled=true;}
-    void GameKeyDown(object? s,KeyEventArgs e){gameKeys.Add(e.Key);e.Handled=true;}
+    void GameKeyDown(object? s,KeyEventArgs e){if(e.Key==Key.F10){StepGameClick(s,e);e.Handled=true;return;}gameKeys.Add(e.Key);e.Handled=true;}
     void GameKeyUp(object? s,KeyEventArgs e){gameKeys.Remove(e.Key);e.Handled=true;}
     void GameLostFocus(object? s,RoutedEventArgs e){gameKeys.Clear();game?.Input(0);}
 }

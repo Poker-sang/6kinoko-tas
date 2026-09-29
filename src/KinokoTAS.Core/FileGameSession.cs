@@ -68,9 +68,12 @@ public sealed class FileGameSession : IGameSession {
             return new(count,w,h,data[24..]);
         }catch(IOException){return null;}
     }
+    static void Mailbox(string path,Action<Stream> write) {
+        for(int attempt=0;;attempt++)try{AtomicFile.Write(path,write);return;}catch(IOException)when(attempt<12){Thread.Sleep(2);}
+    }
     public void Input(uint mask) {
         if(process is null||process.HasExited)return;
-        AtomicFile.Write(Path.Combine(bridge,"input.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"{++inputSequence} {mask}\n");});
+        Mailbox(Path.Combine(bridge,"input.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"{++inputSequence} {mask}\n");});
     }
     async Task<SessionState> WaitAsync(Func<SessionState,bool> predicate,TimeSpan timeout,CancellationToken ct) {
         var watch=Stopwatch.StartNew();
@@ -79,7 +82,7 @@ public sealed class FileGameSession : IGameSession {
     }
     async Task<SessionState> SendAsync(string verb,long arg,Func<SessionState,bool> predicate,CancellationToken ct) {
         await commands.WaitAsync(ct);
-        try {long id=++sequence;AtomicFile.Write(Path.Combine(bridge,"command.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"{id} {verb} {arg}\n");});return await WaitAsync(s=>s.Sequence==id&&predicate(s),TimeSpan.FromMinutes(30),ct);}
+        try {long id=++sequence;Mailbox(Path.Combine(bridge,"command.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"{id} {verb} {arg}\n");});return await WaitAsync(s=>s.Sequence==id&&predicate(s),TimeSpan.FromMinutes(30),ct);}
         finally{commands.Release();}
     }
     static GameState State(SessionState s,string id)=>new(s.Completed,s.Phase.EndsWith("paused"),id);
@@ -106,7 +109,7 @@ public sealed class FileGameSession : IGameSession {
     public async Task<string> StopAsync() {
         if(process is null)return BranchPath;
         try {
-            long id=++sequence;AtomicFile.Write(Path.Combine(bridge,"command.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"{id} stop 0\n");});
+            long id=++sequence;Mailbox(Path.Combine(bridge,"command.txt"),s=>{using var w=new StreamWriter(s,leaveOpen:true);w.Write($"{id} stop 0\n");});
             using var limit=new CancellationTokenSource(TimeSpan.FromSeconds(15));await process.WaitForExitAsync(limit.Token);
         }catch(OperationCanceledException){process.Kill(true);await process.WaitForExitAsync();throw new IOException("游戏未正常结束，录制文件可能未完成。");}
         finally{process.Dispose();process=null;}
