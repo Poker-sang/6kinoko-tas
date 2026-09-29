@@ -26,7 +26,10 @@ public partial class MainWindow {
     async void AddBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(()=>AddBookmarkAsync(BookmarkName.Text??""));
     async void ReturnBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{
         if(BookmarkList.SelectedItem is not FrameBookmark mark)return;
-        if(game?.IsLive==true){await EndGame(true);}
+        if(game?.IsLive==true){
+            if(dirty && !await ConfirmDiscard())return;dirty=false;
+            var live=game;await EndGame(true);await AttachGameSessionAsync(live.ReopenBranch);
+        }
         if(game is null){await LaunchGame(false);if(game is null)return;}
         using var cancel=new CancellationTokenSource();seeking=cancel;
         try{GameStatus.Text=$"正在重播返回：{mark.Name}";await game.SeekAsync(mark.Frame,cancel.Token);SelectFrame(mark.Frame);}
@@ -41,9 +44,11 @@ public partial class MainWindow {
         if(folders.Count==0 || folders[0].TryGetLocalPath() is not string folder)return;
         var initial=game is not null?Path.Combine(game.SessionDirectory,"initial"):await InitialDirectory(sourcePath);
         if(initial is null)return;
-        if(game is not null)await EndGame(true);
-        if(Project is null)return;
-        var output=RecordingLibrary.SaveBundle(folder,Project.Source,initial,bookmarks);ShowSaved(output);
+        Replay replay;
+        if(game is not null){var active=game;await EndGame(false);replay=Replay.Load(active.BranchPath);}
+        else replay=Project!.Source;
+        var output=RecordingLibrary.SaveBundle(folder,replay,initial,bookmarks.Where(m=>m.Frame<replay.Count));ShowSaved(output);
+        if(!dirty)await OpenPathAsync(output);
         StatusLabel.Text="录制及初始存档、书签已保存。输入草稿需单独保存项目。";
     }
     void OpenSavedClick(object? s,RoutedEventArgs e){try{if(lastSaved is not null)Process.Start(new ProcessStartInfo(Path.GetDirectoryName(lastSaved)!){UseShellExecute=true});}catch(Exception ex){StatusLabel.Text="打开目录失败："+ex.Message;}}

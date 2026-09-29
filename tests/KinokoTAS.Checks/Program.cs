@@ -38,6 +38,11 @@ internal static class Program {
    Check(File.ReadAllText(atomic)=="keep","failed save preserves old file");
    if(args.Length>1){var real=Replay.Load(args[1]);Check(real.Count>0,"user recording read-only: "+real.Count+" frames");}
    string fakeExe=ProtocolCheck(output,replayPath).GetAwaiter().GetResult();
+   var marks=new[]{new FrameBookmark(2,"Boss 前"),new FrameBookmark(10,"重点")};
+   var bundle=RecordingLibrary.SaveBundle(output,replay,Path.Combine(output,"initial"),marks);
+   Check(Replay.Load(bundle).Bytes.Span.SequenceEqual(data),"saved bundle preserves exact replay");
+   Check(File.ReadAllText(Path.Combine(Path.GetDirectoryName(bundle)!,"initial","marisaA.dat"))=="original","saved bundle includes initial saves");
+   Check(RecordingLibrary.LoadBookmarks(bundle+".bookmarks.json",replay.Count).SequenceEqual(marks),"named bookmarks survive bundle save and reload");
    AppBuilder.Configure<App>().UseSkia().UseHeadless(new(){UseHeadlessDrawing=false}).SetupWithoutStarting();
    var window=new MainWindow();window.Show();var open=window.OpenPathAsync(replayPath);
    while(!open.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}open.GetAwaiter().GetResult();Dispatcher.UIThread.RunJobs();
@@ -54,6 +59,8 @@ internal static class Program {
    var previewDeadline=DateTime.UtcNow.AddSeconds(10);
    while(window.FindControl<Image>("GameImage")!.Source is null && DateTime.UtcNow<previewDeadline){window.RefreshGameView();Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}
    Check(window.FindControl<Image>("GameImage")!.Source is not null,"embedded preview arrives in UI");
+   var addMark=window.AddBookmarkAsync("测试重点");while(!addMark.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}addMark.GetAwaiter().GetResult();
+   Check(window.FindControl<ListBox>("BookmarkList")!.SelectedItem is FrameBookmark {Frame:0},"bookmark captures completed game frame");
    using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var stop=window.StopGameSessionAsync();while(!stop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}stop.GetAwaiter().GetResult();
    var externalSession=new FileGameSession(fakeExe,Path.Combine(output,"external-session"),null,Path.Combine(output,"initial"),new string('a',64),true);

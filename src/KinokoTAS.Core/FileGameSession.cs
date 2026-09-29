@@ -18,6 +18,7 @@ public sealed class FileGameSession : IGameSession {
     long sequence,inputSequence;
     public string BranchPath {get;private set;}="";
     public string SessionDirectory=>root;
+    public FileGameSession ReopenBranch()=>new(executable,root+"-return-"+Guid.NewGuid().ToString("N")[..8],BranchPath,Path.Combine(root,"initial"),identity,ExternalWindow);
     public bool IsLive {get;private set;}
     public bool ExternalWindow {get;}
     public string EngineHash {get;}
