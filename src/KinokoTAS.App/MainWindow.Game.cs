@@ -99,7 +99,11 @@ public partial class MainWindow {
         GameStatus.Text="启动引擎，等待首帧…";previewCount=-1;gameKeys.Clear();
         try {await session.StartAsync();}
         catch {await session.DisposeAsync();EngineLabel.Text="启动失败";throw;}
-        if(session.IsLive){bookmarks.Clear();bookmarkFile=Path.Combine(session.SessionDirectory,"bookmarks.json");}
+        if(session.IsLive){
+            if(Project is not null)Project.Changed-=OnChanged;
+            Project=null;Timeline.Project=null;sourcePath=null;dirty=false;
+            bookmarks.Clear();bookmarkFile=Path.Combine(session.SessionDirectory,"bookmarks.json");
+        }
         liveTimeline=new();timelineSource=null;
         game=session;GameImage.IsVisible=!session.ExternalWindow;ExternalHint.IsVisible=session.ExternalWindow;EmbeddedOption.IsEnabled=false;EngineLabel.Text=session.IsLive?"新录制 · 已暂停":"回放 · 已暂停";
     }

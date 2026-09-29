@@ -121,6 +121,11 @@ internal static class Program {
    Check(window.FindControl<TimelineControl>("Timeline")!.Playhead==1,"F10 steps once with preview focus");
    window.KeyRelease(Key.F10,RawInputModifiers.None,PhysicalKey.F10,null);
    var editingStop=window.StopGameSessionAsync();while(!editingStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}editingStop.GetAwaiter().GetResult();
+   window.Project!.SetRange(0,0,4,false);
+   var fresh=new FileGameSession(fakeExe,Path.Combine(output,"fresh-after-edits"),null,Path.Combine(output,"initial"),new string('a',64),true);
+   var newDoc=window.AttachGameSessionAsync(fresh);while(!newDoc.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}newDoc.GetAwaiter().GetResult();
+   Check(window.Project is null,"new recording cannot inherit stale input draft");
+   var freshStop=window.StopGameSessionAsync();while(!freshStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}freshStop.GetAwaiter().GetResult();
    window.Hide();window=new MainWindow();window.Show();
    var externalSession=new FileGameSession(fakeExe,Path.Combine(output,"external-session"),null,Path.Combine(output,"initial"),new string('a',64),true);
    var externalConnect=window.AttachGameSessionAsync(externalSession);

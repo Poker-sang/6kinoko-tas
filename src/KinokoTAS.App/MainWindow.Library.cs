@@ -37,7 +37,7 @@ public partial class MainWindow {
         try{GameStatus.Text=$"正在重播返回：{mark.Name}";await game.SeekAsync(mark.Frame,cancel.Token);UpdatePlaybackProject();RefreshGameView();SelectFrame(mark.Frame);}
         finally{seeking=null;}
     }
-    void RemoveBookmarkClick(object? s,RoutedEventArgs e){try{if(BookmarkList.SelectedItem is FrameBookmark mark){bookmarks.Remove(mark);PersistBookmarks();}}catch(Exception ex){StatusLabel.Text=ex.Message;}}
+    void RemoveBookmarkClick(object? s,RoutedEventArgs e){if(busy||gameCommand)return;try{if(BookmarkList.SelectedItem is FrameBookmark mark){bookmarks.Remove(mark);PersistBookmarks();}}catch(Exception ex){StatusLabel.Text=ex.Message;}}
     async void SaveRecordingClick(object? s,RoutedEventArgs e)=>await Operate(SaveRecordingAsync);
     async Task SaveRecordingAsync() {
         if(Project?.InvalidFrom is not null)throw new InvalidOperationException("输入修改尚未执行。请先点击“应用修改”，或另存输入草稿项目。");
