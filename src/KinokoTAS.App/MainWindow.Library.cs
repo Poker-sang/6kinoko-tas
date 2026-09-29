@@ -21,8 +21,12 @@ public partial class MainWindow {
         else if(Project?.Source.Count>0)frame=Timeline.SelectedFrame;
         else throw new InvalidOperationException("先新建或打开录制。");
         if(frame<0)throw new InvalidOperationException("请等待首帧完成。");
+        AddBookmarkAt(frame,name);
+    }
+    public void AddBookmarkAt(int frame,string name) {
+        if(frame<0 || (frame>=Timeline.FrameCount && game is null))throw new ArgumentOutOfRangeException(nameof(frame));
         var mark=new FrameBookmark(frame,string.IsNullOrWhiteSpace(name)?$"重点 {bookmarks.Count+1}":name.Trim());
-        bookmarks.Add(mark);PersistBookmarks();BookmarkList.SelectedItem=mark;StatusLabel.Text=$"已添加书签：{mark}（已暂停）";
+        bookmarks.Add(mark);PersistBookmarks();BookmarkList.SelectedItem=mark;StatusLabel.Text=$"已添加书签：{mark}";
     }
     async void AddBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(()=>AddBookmarkAsync(BookmarkName.Text??""));
     async void ReturnBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(ReturnSelectedBookmarkAsync);

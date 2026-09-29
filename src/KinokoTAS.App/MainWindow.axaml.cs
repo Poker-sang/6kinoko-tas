@@ -6,7 +6,9 @@ public partial class MainWindow : Window {
     private string? sourcePath;
     public MainWindow() {
         InitializeComponent();InitializeGamePanel();InitializeLibrary();ActionPicker.ItemsSource=Replay.Labels;
-        Timeline.CellClicked+=async (frame,action)=>{if(busy)return;SelectFrame(frame);FollowLatest.IsChecked=false;if(action>=0 && Timeline.LiveMasks is null)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));else if(action<0)await SeekGame(frame);};
+        Timeline.CellClicked+=(frame,action)=>{if(busy)return;SelectFrame(frame);FollowLatest.IsChecked=false;if(action>=0 && Timeline.LiveMasks is null)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));};
+        Timeline.FrameActivated+=async frame=>{if(!busy)await SeekGame(frame);};
+        Timeline.BookmarkRequested+=frame=>{try{AddBookmarkAt(frame,BookmarkName.Text??"");}catch(Exception ex){StatusLabel.Text=ex.Message;}};
         Timeline.Scrolled+=delta=>{FollowLatest.IsChecked=false;FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
         Closing+=async (_,e)=> {
             if(game is not null && !allowClose){e.Cancel=true;await EndGame(false);if(!dirty){allowClose=true;Close();}return;}

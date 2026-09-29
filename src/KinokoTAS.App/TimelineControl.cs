@@ -12,6 +12,8 @@ public sealed class TimelineControl : Control {
     public int SelectedFrame {get;set;}
     public event Action<int,int>? CellClicked;
     public event Action<int>? Scrolled;
+    public event Action<int>? FrameActivated;
+    public event Action<int>? BookmarkRequested;
     private static readonly Typeface Font=new("Segoe UI");
     private static readonly IBrush Muted=Brush.Parse("#8FA3BF"),Active=Brush.Parse("#247665"),Selected=Brush.Parse("#233C52"),Edited=Brush.Parse("#FFC779");
     private static void Text(DrawingContext c,string value,Point p,IBrush brush,double size=12)=>c.DrawText(new FormattedText(value,System.Globalization.CultureInfo.CurrentCulture,FlowDirection.LeftToRight,Font,size,brush),p);
@@ -43,12 +45,23 @@ public sealed class TimelineControl : Control {
     }
     protected override void OnPointerPressed(PointerPressedEventArgs e) {
         base.OnPointerPressed(e);
-        if(!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)return;
+        var buttons=e.GetCurrentPoint(this).Properties;
+        if(buttons.IsRightButtonPressed){ContextMenu?.Close();ContextMenu=null;}
+        if(!buttons.IsLeftButtonPressed && !buttons.IsRightButtonPressed)return;
         var p=e.GetPosition(this);if(p.X<FrameWidth || p.Y<0)return;
         int f=FirstFrame+(int)((p.X-FrameWidth)/CellWidth);
         int action=p.Y<HeaderHeight?-1:(int)((p.Y-HeaderHeight)/RowHeight);
         if(f>=FrameCount || action>=Replay.ActionCount)return;
-        CellClicked?.Invoke(f,action);e.Handled=true;
+        if(buttons.IsRightButtonPressed){
+            CellClicked?.Invoke(f,-1);
+            var add=new MenuItem{Header=$"在第 {f} 帧添加标记"};
+            add.Click+=(_,_)=>BookmarkRequested?.Invoke(f);
+            ContextMenu=new ContextMenu{ItemsSource=new[]{add}};ContextMenu.Open(this);
+        }else {
+            CellClicked?.Invoke(f,action);
+            if(action<0 && e.ClickCount==2)FrameActivated?.Invoke(f);
+        }
+        e.Handled=true;
     }
     protected override void OnPointerMoved(PointerEventArgs e){base.OnPointerMoved(e);var p=e.GetPosition(this);int frame=FirstFrame+(int)((p.X-FrameWidth)/CellWidth);ToolTip.SetTip(this,p.X>=FrameWidth?string.Join(" · ",Bookmarks.Where(m=>m.Frame==frame).Select(m=>m.Name)):null);}
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e) {Scrolled?.Invoke(-(int)((e.Delta.X!=0?e.Delta.X:e.Delta.Y)*5));e.Handled=true;}
