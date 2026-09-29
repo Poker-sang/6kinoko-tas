@@ -1,3 +1,4 @@
+using Avalonia.VisualTree; using Avalonia.Interactivity;
 using Avalonia; using Avalonia.Controls; using Avalonia.Headless; using Avalonia.Input; using Avalonia.Threading;
 using KinokoTAS.Core; using KinokoTAS.App;
 internal static class Program {
@@ -60,7 +61,20 @@ internal static class Program {
    Check(File.ReadAllBytes(Path.Combine(packedSession.SessionDirectory,"source.krec")).SequenceEqual(data),"game receives unpacked legacy wire format");
    packedSession.StopAsync().GetAwaiter().GetResult();
    AppBuilder.Configure<App>().UseSkia().UseHeadless(new(){UseHeadlessDrawing=false}).SetupWithoutStarting();
-   var window=new MainWindow();window.Show();var open=window.OpenPathAsync(replayPath);
+   var window=new MainWindow();window.Show();Dispatcher.UIThread.RunJobs();
+   var confirmation=window.ConfirmContentAsync("未保存的修改","放弃未保存的输入草稿？原始录制不会被修改。","放弃修改","返回编辑");
+   Dispatcher.UIThread.RunJobs();
+   using(var dialogImage=window.CaptureRenderedFrame()??throw new Exception("No dialog image"))dialogImage.Save(Path.Combine(output,"dialog.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+   Check(!(window.Content as Control)!.IsEnabled,"dialog blocks background controls");
+   var primary=window.GetVisualDescendants().OfType<Button>().Single(b=>b.Name=="PART_PrimaryButton");
+   primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+   var dialogDeadline=DateTime.UtcNow.AddSeconds(5);while(!confirmation.IsCompleted && DateTime.UtcNow<dialogDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(confirmation.IsCompletedSuccessfully && confirmation.Result && (window.Content as Control)!.IsEnabled,"dialog primary result restores background controls");
+   var cancellation=window.ConfirmContentAsync("验证录制","出现不同步时停止。","开始回放","取消");Dispatcher.UIThread.RunJobs();
+   window.GetVisualDescendants().OfType<Button>().Single(b=>b.Name=="PART_CloseButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+   dialogDeadline=DateTime.UtcNow.AddSeconds(5);while(!cancellation.IsCompleted && DateTime.UtcNow<dialogDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(cancellation.IsCompletedSuccessfully && !cancellation.Result,"dialog cancel returns false");
+   var open=window.OpenPathAsync(replayPath);
    while(!open.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}open.GetAwaiter().GetResult();Dispatcher.UIThread.RunJobs();
    Check(window.Project?.Source.Count==180,"UI loads source");
    var timeline=window.FindControl<TimelineControl>("Timeline")!;
