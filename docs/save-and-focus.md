@@ -30,6 +30,14 @@ Game: `C:/WorkSpace/6kinoko-modern/runtime-builds/modern-x64-tas-live-save-01/ki
 source `7263d4df`. Select this new game executable before creating a new session.
 The current session remains tied to its original executable.
 
+Playback command update: `artifacts/windows-editor-26/KinokoTAS.App.exe`
+(source `1af599c`). Only playback is shown while paused; only pause is shown
+while playing/recording. Playback is disabled without a running paused session,
+at playback EOF, or during conflicting operations. F9 retains its toggle behavior.
+Release build and full synthetic checks are retained in `artifacts/build-65`
+and `artifacts/checks-65`, including paused/live command visibility checks.
+The game executable remains the live-save-01 version above.
+
 Editor Release build and full synthetic checks passed in `artifacts/build-63`
 and `artifacts/checks-63`. Checks cover repeated saves without a picker, complete
 live packages, unchanged process/mode, and continued recording after export.
