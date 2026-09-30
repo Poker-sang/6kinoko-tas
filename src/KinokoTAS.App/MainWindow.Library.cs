@@ -19,7 +19,7 @@ public partial class MainWindow {
             var remove=new MenuItem{Header="删除重点"};
             remove.Click+=(_,_)=>RemoveBookmark(mark);
             BookmarkList.ContextMenu=new ContextMenu{ItemsSource=new[]{remove}};
-            BookmarkList.ContextMenu.Open(item);e.Handled=true;
+            BookmarkList.ContextMenu.Open(BookmarkList);e.Handled=true;
         }else if(buttons.IsLeftButtonPressed && e.ClickCount==2) {
             BookmarkList.SelectedItem=mark;FollowLatest.IsChecked=false;SelectFrame(mark.Frame);e.Handled=true;
         }
