@@ -6,8 +6,8 @@
 
 ## 当前版本
 
-- 编辑器：`C:/WorkSpace/6kinoko-tas/artifacts/windows-editor-20/KinokoTAS.App.exe`
-  （源码 `57f7064`，需 .NET 10）。
+- 编辑器：`C:/WorkSpace/6kinoko-tas/artifacts/windows-editor-23/KinokoTAS.App.exe`
+  （交互优化源码 `557b76c`，需 .NET 10）。
 - 游戏：`C:/WorkSpace/6kinoko-modern/runtime-builds/modern-x64-tas-fast-seek-03/kinoko_modern_gpu.exe`
   （源码 `d64dac9d`）。游戏路径需选择此新版以启用不限速定位。
 - 编辑器构建和完整合成检查：`artifacts/build-51`、`artifacts/checks-51`。
@@ -31,3 +31,15 @@
 封装 .krec 由编辑器解包，游戏旧 CLI 不直接读取该封装。
 编辑器发布包仍依赖 .NET 10；Linux/macOS 编辑器未做新的人工验证。
 上述项目不阻塞首版收尾，后续按实际需求另行推进。
+
+## 收尾后的交互优化
+
+开启录制后，Windows 独立游戏窗口自动获得焦点；内嵌模式聚焦预览区。
+双击重点只选中并滚动到时间轴对应帧，不启动游戏定位，也不修改播放游标。
+右键重点提供“重命名重点”和“删除重点”，针对点中的条目；重命名保留帧号，
+取消不修改名称，空名称不可保存。原来的“返回”仍用于游戏定位。
+
+本批编译、完整合成检查与发布记录位于 `artifacts/build-62`、
+`artifacts/checks-62`；覆盖重点双击不定位、右键目标、重命名保留帧号、
+删除保留其他重点及内嵌录制焦点。此前失败检查及历史产物均保留。
+独立窗口焦点调用已编译，未执行真实游戏的前台切换验证；游戏引擎未改动。
