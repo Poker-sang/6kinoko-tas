@@ -147,7 +147,7 @@ internal static class Program {
    Check(markList.Items.OfType<FrameBookmark>().Single(mark=>mark.Name==layoutMark).Frame==5,"undo deletion recovers bookmark at original frame");
    window.GetVisualDescendants().OfType<Expander>().Single().IsExpanded=true;Dispatcher.UIThread.RunJobs();window.UpdateLayout();
    using(var frameTools=window.CaptureRenderedFrame()??throw new Exception("No frame tools image"))frameTools.Save(Path.Combine(output,"frame-tools.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
-   var editingSession=new FileGameSession(fakeExe,Path.Combine(output,"ui-edit-session"),replayPath,Path.Combine(output,"initial"),new string('a',64),true);
+   var editingSession=new FileGameSession(fakeExe,Path.Combine(output,"ui-edit-session"),replayPath,Path.Combine(output,"initial"),new string('a',64));
    var editConnect=window.AttachGameSessionAsync(editingSession);while(!editConnect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}editConnect.GetAwaiter().GetResult();
    window.InsertEmptyFrames(3,1);bool blocked=false;
    try{window.ReplayAllAsync().GetAwaiter().GetResult();}catch(InvalidOperationException){blocked=true;}
