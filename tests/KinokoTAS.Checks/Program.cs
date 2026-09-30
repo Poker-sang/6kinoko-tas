@@ -260,7 +260,7 @@ internal static class Program {
    var externalStop=window.StopGameSessionAsync();while(!externalStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalStop.GetAwaiter().GetResult();
    var closingWindow=new MainWindow();closingWindow.Show();
    var savedPackage=RecordingPackage.Load(savePath);
-   var staleCache=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"KinokoTAS","bookmarks",Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(savedPackage.Replay.Bytes.Span))+".json");
+   var staleCache=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"6kinokoTAS","bookmarks",Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(savedPackage.Replay.Bytes.Span))+".json");
    var previousCache=File.Exists(staleCache)?File.ReadAllBytes(staleCache):null;
    Directory.CreateDirectory(Path.GetDirectoryName(staleCache)!);File.WriteAllText(staleCache,"[]");
    var closeOpen=closingWindow.OpenPathAsync(savePath);while(!closeOpen.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}closeOpen.GetAwaiter().GetResult();
