@@ -1,5 +1,8 @@
 # Roadmap
 
+First-version workflow closed on 2026-09-30 following user acceptance of
+unlimited seeking. Delivery and limitations: [first-version-closeout.md](first-version-closeout.md).
+
 - [x] Independent editor and validated replay/package reader.
 - [x] Horizontal live timeline, playhead, follow mode and bookmarks.
 - [x] Cell/range edits, undo/redo and compressed draft projects.
@@ -13,8 +16,13 @@
 - [x] Playback speed controls and accelerated seek/resimulation.
 - [x] Insert/delete frames and drag painting with grouped undo.
 - [x] Unlimited seek/resimulation with precise completion and cancellation previews.
+
+## Optional future work
+
 - [ ] Save-state seeking after engine serialization is complete.
 - [ ] Native Linux/macOS editor validation.
+- [ ] Self-contained publication without a separate .NET installation.
+- [ ] Recovery history persisted across editor restarts.
 
 Recovery history currently belongs to the active editor session. Old runtime
 files remain on disk; no automatic cleanup is performed.
