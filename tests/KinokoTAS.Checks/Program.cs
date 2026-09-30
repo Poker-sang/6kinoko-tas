@@ -120,6 +120,8 @@ internal static class Program {
    var renameMark=(FrameBookmark)bookmarkList.SelectedItem!;
    bookmarkList.ContextMenu!.Close();
    var renameTask=window.RenameBookmarkAsync(renameMark);Dispatcher.UIThread.RunJobs();
+   var renameDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(!window.GetVisualDescendants().OfType<KinokoTAS.App.Controls.ContentDialog>().Any() && !renameTask.IsCompleted && DateTime.UtcNow<renameDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
    var renameInput=window.GetVisualDescendants().OfType<KinokoTAS.App.Controls.ContentDialog>().Single().Content as TextBox;
    renameInput!.Text=renamedName;
    window.GetVisualDescendants().OfType<Button>().Single(b=>b.Name=="PART_PrimaryButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
