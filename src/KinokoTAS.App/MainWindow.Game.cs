@@ -3,6 +3,8 @@ using KinokoTAS.Core; using System.Runtime.InteropServices; using System.Text.Js
 namespace KinokoTAS.App;
 public partial class MainWindow {
     FileGameSession? game;
+    FileGameSession? playbackSession;
+    SessionState? playbackState;
     readonly DispatcherTimer gameTimer=new(){Interval=TimeSpan.FromMilliseconds(33)};
     readonly HashSet<Key> gameKeys=[];
     WriteableBitmap? bitmap;
@@ -32,7 +34,7 @@ public partial class MainWindow {
         Timeline.FinishPainting();
         if(gameCommand)return;gameCommand=true;
         try{operationError=null;await action();}catch(OperationCanceledException){operationError="操作已取消，原录制与草稿保留。";GameStatus.Text=operationError;}catch(Exception ex){operationError="操作失败："+ex.Message;GameStatus.Text=operationError;}
-        finally{gameCommand=false;}
+        finally{gameCommand=false;RefreshGameView();}
     }
     async Task<string?> PickGame() {
         if(gameExe is not null && File.Exists(gameExe))return gameExe;
@@ -120,22 +122,24 @@ public partial class MainWindow {
         Set(gameKeys.Contains(Key.Space),4);Set(gameKeys.Contains(Key.Enter),11);Set(gameKeys.Contains(Key.Escape),13);return m;
     }
     public void RefreshGameView() {
-        UpdatePlaybackButtons(null);
+        if(!ReferenceEquals(playbackSession,game)){playbackSession=game;playbackState=null;}
         BindLayoutProject();
         CancelOperationButton.IsEnabled=seeking is not null;
         ApplyEditsButton.IsEnabled=!gameCommand && !busy && Project?.InvalidFrom is not null && game?.IsLive!=true;
         RestoreOverwriteButton.IsEnabled=!gameCommand && !busy && game is not null && recoveries.Count>0;
         RestartGameButton.IsEnabled=game is not null?!game.IsRunning:Project is not null;
-        if(game is null)return;
-        if(!game.IsRunning){EngineLabel.Text="游戏已关闭";GameStatus.Text=operationError??"点击“重新启动游戏”恢复当前录制。";return;}
+        if(game is null){UpdatePlaybackButtons(null);return;}
+        if(!game.IsRunning){playbackState=null;UpdatePlaybackButtons(null);EngineLabel.Text="游戏已关闭";GameStatus.Text=operationError??"点击“重新启动游戏”恢复当前录制。";return;}
         try {
             if(game.ExternalWindow && OperatingSystem.IsWindows()) {
                 if(orderedProcess!=game.GameProcessId){orderedProcess=game.GameProcessId;orderedGameWindow=0;}
                 var handle=game.GameWindowHandle;
                 if(handle!=0 && handle!=orderedGameWindow && GameWindowOrder.Attach(handle,TryGetPlatformHandle()?.Handle??0))orderedGameWindow=handle;
             }
-            game.Input(CurrentMask());var state=game.ReadState();if(state is null)return;
-            UpdatePlaybackButtons(state);
+            game.Input(CurrentMask());var state=game.ReadState();
+            if(state is not null)playbackState=state;
+            UpdatePlaybackButtons(playbackState);
+            if(state is null)return;
             RefreshTimeline(state);RecordToggle.IsChecked=game.IsLive;
             var frame=game.ExternalWindow?null:game.ReadPreview();
             if(frame is not null && frame.Completed!=previewCount) {
@@ -181,7 +185,7 @@ public partial class MainWindow {
     public async Task NewRecordingAsync(){if(await ConfirmSaveChangesAsync())await LaunchGame(true);}
     async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(NewRecordingAsync);
     async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{RequireAppliedLayout();if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(selectedSpeed,default);GamePanel.Focus();});
-    async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}
+    async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}finally{RefreshGameView();}}
     async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{RequireAppliedLayout();if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});
     async void TakeoverClick(object? s,RoutedEventArgs e)=>await Operate(ToggleRecordingAsync);
     

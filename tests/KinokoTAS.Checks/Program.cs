@@ -213,7 +213,22 @@ internal static class Program {
    window.PauseOnDeactivateAsync().GetAwaiter().GetResult();
    Check(externalSession.ReadState()!.Sequence==before,"external window focus transfer does not pause recording");
    Check(File.Exists(Path.Combine(externalSession.SessionDirectory,"external-window.txt")),"external mode launch argument reaches child");
+   ClickPlaybackThroughRefresh(window,"PauseGameButton");
+   var playbackDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(externalSession.ReadState()?.Phase!="live-paused" && DateTime.UtcNow<playbackDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(externalSession.ReadState()?.Phase=="live-paused","pause click survives refresh while live recording runs");
+   window.RefreshGameView();ClickPlaybackThroughRefresh(window,"PlayGameButton");
+   playbackDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(externalSession.ReadState()?.Phase!="live" && DateTime.UtcNow<playbackDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(externalSession.ReadState()?.Phase=="live","play click survives refresh and resumes live recording");
    var liveMark=window.AddBookmarkAsync("重新挑战");while(!liveMark.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}liveMark.GetAwaiter().GetResult();
+   window.RefreshGameView();
+   Check(window.FindControl<Control>("PlayGameButton")!.IsEnabled,"bookmark pause enables live resume");
+   ClickPlaybackThroughRefresh(window,"PlayGameButton");
+   playbackDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(externalSession.ReadState()?.Phase!="live" && DateTime.UtcNow<playbackDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(externalSession.ReadState()?.Phase=="live","recording resumes after bookmark without changing recording mode");
+   var bookmarkPause=externalSession.PauseAsync(default);while(!bookmarkPause.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}bookmarkPause.GetAwaiter().GetResult();
    var marked=(FrameBookmark)window.FindControl<ListBox>("BookmarkList")!.SelectedItem!;
    var advance=externalSession.StepAsync(new bool[19],default);while(!advance.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}advance.GetAwaiter().GetResult();
    var goBack=window.ReturnSelectedBookmarkAsync();while(!goBack.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}goBack.GetAwaiter().GetResult();
@@ -251,6 +266,21 @@ internal static class Program {
   var deadline=DateTime.UtcNow.AddSeconds(5);
   while(!window.GetVisualDescendants().OfType<Button>().Any(b=>b.Name==name) && DateTime.UtcNow<deadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
   window.GetVisualDescendants().OfType<Button>().Single(b=>b.Name==name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+ }
+
+ static void ClickPlaybackThroughRefresh(MainWindow window,string name) {
+  window.RefreshGameView();Dispatcher.UIThread.RunJobs();window.UpdateLayout();
+  var button=window.FindControl<Control>(name)!;
+  Check(button.IsVisible && button.IsEnabled,name+" available before pointer press");
+  int resets=0;
+  void Changed(object? sender,AvaloniaPropertyChangedEventArgs args){if(args.Property==Visual.IsVisibleProperty || args.Property==InputElement.IsEnabledProperty)resets++;}
+  button.PropertyChanged+=Changed;
+  var point=button.TranslatePoint(new Point(button.Bounds.Width/2,button.Bounds.Height/2),window)!.Value;
+  window.MouseDown(point,MouseButton.Left);
+  for(int refresh=0;refresh<5;refresh++){window.RefreshGameView();Dispatcher.UIThread.RunJobs();}
+  button.PropertyChanged-=Changed;
+  Check(resets==0,name+" stays visible and enabled across held-click refreshes");
+  window.MouseUp(point,MouseButton.Left);Dispatcher.UIThread.RunJobs();
  }
 
  static int FakeEngine(string[] args) {
