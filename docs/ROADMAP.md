@@ -12,6 +12,7 @@
 - [x] Public GitHub repository with master as default.
 - [x] Playback speed controls and accelerated seek/resimulation.
 - [x] Insert/delete frames and drag painting with grouped undo.
+- [x] Bounded embedded frame preview cache during replay seeking.
 - [ ] Save-state seeking after engine serialization is complete.
 - [ ] Native Linux/macOS editor validation.
 

@@ -24,6 +24,8 @@ public sealed class FileGameSession : IGameSession {
     Process? process;
     string run="",bridge="";
     long sequence,inputSequence,lastCompleted;
+    readonly PreviewCache previews=new();
+    public PreviewFrame? CachedPreview(long completed)=>previews.Get(completed);
     public bool IsRunning=>process is not null && !process.HasExited;
     public string BranchPath {get;private set;}="";
     public string SessionDirectory=>root;
@@ -128,7 +130,8 @@ public sealed class FileGameSession : IGameSession {
             long count=System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(data.AsSpan(8));
             int w=System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(16)),h=System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(20));
             if(w<=0||h<=0||w>4096||h>4096||data.Length!=24+(long)w*h*4)return null;
-            return new(count,w,h,data[24..]);
+            var frame=new PreviewFrame(count,w,h,data[24..]);
+            if(previews.Get(count) is null)previews.Add(frame);return frame;
         }catch(IOException){return null;}
     }
     static void Mailbox(string path,Action<Stream> write) {
@@ -193,7 +196,7 @@ public sealed class FileGameSession : IGameSession {
         await SealLiveAsync(ct);await SeekAsync(Math.Max(0,frame),ct);
     }
     public async Task ReplayAllAsync(CancellationToken ct=default){await SeekAsync(0,ct);if(ReadState()!.Total>1)await ResumeAsync(PlaybackSpeed,ct);}
-    public async Task TakeoverAsync(CancellationToken ct=default) {if(IsLive)return;await PauseAsync(ct);Input(0);await SendAsync("takeover",0,s=>s.Phase=="live-paused",ct);IsLive=true;}
+    public async Task TakeoverAsync(CancellationToken ct=default) {if(IsLive)return;await PauseAsync(ct);Input(0);await SendAsync("takeover",0,s=>s.Phase=="live-paused",ct);previews.Clear();IsLive=true;}
     public async Task<string> StopAsync() {
         if(process is null)return BranchPath;
         try {

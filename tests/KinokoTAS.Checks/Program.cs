@@ -28,6 +28,12 @@ internal static class Program {
    string output=Path.GetFullPath(args.Length>0?args[0]:"artifacts/checks-"+DateTime.Now.ToString("yyyyMMdd-HHmmss"));
    if(Directory.Exists(output))throw new Exception("Use a fresh output directory");Directory.CreateDirectory(output);
    byte[] data=Fixture();string replayPath=Path.Combine(output,"synthetic.krec");File.WriteAllBytes(replayPath,data);
+   var cache=new PreviewCache(8);byte[] pixels=[1,2,3,4];cache.Add(new(1,1,1,pixels));pixels[0]=9;
+   Check(cache.Get(1)!.Pixels[0]==1,"preview cache owns pixels");
+   cache.Add(new(2,1,1,[2,2,2,2]));_=cache.Get(1);cache.Add(new(3,1,1,[3,3,3,3]));
+   Check(cache.Get(2) is null && cache.Get(1) is not null && cache.Bytes==8,"preview cache bounded LRU eviction");
+   cache.Add(new(4,3,1,new byte[12]));Check(cache.Bytes==8 && cache.Get(4) is null,"oversized preview skipped");
+   cache.Clear();Check(cache.Bytes==0 && cache.Get(1) is null,"takeover clears stale previews");
    var replay=Replay.Parse(data);FrameEditingChecks.Run(replay,output);Check(replay.Count==180 && replay.Held(59,4)==60 && replay.Released(60,4),"wire values and releases");
    Check(replay.Clock(60)==2000 && replay.RandomBefore(60)==42 && replay.Checkpoint(60)==1020,"wire diagnostic offsets");
    var corrupt=(byte[])data.Clone();corrupt[100]^=1;Reject(corrupt,"corrupt frame rejected");Reject(data[..^1],"truncation rejected");Reject([..data,0],"trailing bytes rejected");
