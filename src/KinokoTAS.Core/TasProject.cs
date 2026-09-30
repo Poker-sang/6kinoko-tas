@@ -135,7 +135,7 @@ public sealed class TasProject {
         if(manifest.Version is not (1 or 2) || manifest.Edits is null || string.IsNullOrWhiteSpace(manifest.SourceName))throw new InvalidDataException("不支持的项目版本。");
         var project=new TasProject(replay,manifest.SourceName);
         if(manifest.Version==2) {
-            if(manifest.Frames is null || manifest.Frames.Length<1 || manifest.Frames.Length>Replay.MaxFrames || manifest.Edits.Length>0)throw new InvalidDataException("项目帧布局无效。");
+            if(manifest.Frames is null || (manifest.Frames.Length<1 && replay.Count>0) || manifest.Frames.Length>Replay.MaxFrames || manifest.Edits.Length>0)throw new InvalidDataException("项目帧布局无效。");
             int previousSource=-1;
             foreach(var frame in manifest.Frames) {
                 if(frame.SourceFrame< -1 || frame.SourceFrame>=replay.Count || frame.Mask>>Replay.ActionCount!=0 || (frame.SourceFrame>=0 && frame.SourceFrame<=previousSource))throw new InvalidDataException("项目含无效或重复来源帧。");

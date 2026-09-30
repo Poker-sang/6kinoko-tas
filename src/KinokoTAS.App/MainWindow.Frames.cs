@@ -36,7 +36,8 @@ public partial class MainWindow {
         retained.AddRange((change.Forward?saved.Backward:saved.Forward)??[]);
         history[change.Id]=change.Forward?(lost,saved.Backward??[]):(saved.Forward??[],lost);
         bookmarks.Clear();foreach(var mark in retained.OrderBy(mark=>mark.Frame))bookmarks.Add(mark);
-        FrameScroll.Maximum=JumpFrame.Maximum=RangeStart.Maximum=RangeEnd.Maximum=Math.Max(0,Project.FrameCount-1);
+        int maximum=Math.Max(0,Project.FrameCount-1);
+        FrameScroll.Maximum=maximum;JumpFrame.Maximum=RangeStart.Maximum=RangeEnd.Maximum=maximum;
         Timeline.SelectedFrame=Math.Clamp(Timeline.SelectedFrame,0,Math.Max(0,Project.FrameCount-1));
     }
     bool CanEditFrames() {
