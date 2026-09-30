@@ -47,7 +47,7 @@ public sealed class FileGameSession : IGameSession {
         }
         if(replayPath is not null){source=Path.Combine(root,"source.krec");AtomicFile.Write(source,s=>s.Write(Replay.Load(replayPath).Bytes.Span));if(Replay.Load(source).Identity!=identity)throw new InvalidDataException("录制身份不一致。");}
         var files=Directory.GetFiles(Path.Combine(root,"initial")).Order().Select(p=>new InitialFile(Path.GetFileName(p),HashFile(p))).ToArray();
-        File.WriteAllText(Path.Combine(root,"session.json"),JsonSerializer.Serialize(new SessionMetadata(1,identity,EngineHash,replayPath??"",files),new JsonSerializerOptions{WriteIndented=true}));
+        File.WriteAllText(Path.Combine(root,"session.json"),JsonSerializer.Serialize(new SessionMetadata(1,identity,EngineHash,replayPath??"",files),RecordingJsonContext.Default.SessionMetadata));
     }
     public FileGameSession CreatePlaybackSession(string replayPath)=>new(executable,Path.Combine(Path.GetDirectoryName(root)!,"session-"+Guid.NewGuid().ToString("N")),replayPath,Path.Combine(root,"initial"),identity,ExternalWindow){PlaybackSpeed=PlaybackSpeed};
     public async Task<FileGameSession> ResimulateAsync(TasProject project,IProgress<SimulationProgress>? progress=null,CancellationToken ct=default) {

@@ -30,11 +30,11 @@
 
 
     <Style Selector="CommandBarButton[IsCompact=True]">
-        <Setter Property="ToolTip.Tip" Value="{Binding $self.Label}" />
+        <Setter Property="ToolTip.Tip" Value="{CompiledBinding $self.Label, DataType={x:Type CommandBarButton}}" />
     </Style>
 
     <Style Selector="CommandBarToggleButton[IsCompact=True]">
-        <Setter Property="ToolTip.Tip" Value="{Binding $self.Label}" />
+        <Setter Property="ToolTip.Tip" Value="{CompiledBinding $self.Label, DataType={x:Type CommandBarToggleButton}}" />
     </Style>
 
     <Style Selector="CommandBarButton[IsInOverflow=True] /template/ ContentPresenter#PART_IconPresenter">

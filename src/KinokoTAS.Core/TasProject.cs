@@ -121,7 +121,7 @@ public sealed class TasProject {
         using var zip=new ZipArchive(stream,ZipArchiveMode.Create,true);
         using(var raw=zip.CreateEntry("source.krec",CompressionLevel.Optimal).Open())raw.Write(Source.Bytes.Span);
         var manifest=new ProjectManifest(2,SourceName,[],frames.ToArray());
-        using var json=zip.CreateEntry("project.json",CompressionLevel.Optimal).Open();JsonSerializer.Serialize(json,manifest);
+        using var json=zip.CreateEntry("project.json",CompressionLevel.Optimal).Open();JsonSerializer.Serialize(json,manifest,RecordingJsonContext.Default.ProjectManifest);
     });
     public static TasProject Load(string path) {
         using var zip=ZipFile.OpenRead(path);
@@ -131,7 +131,7 @@ public sealed class TasProject {
         if(raw.Length>Replay.HeaderSize+(long)Replay.RecordSize*Replay.MaxFrames+17 || json.Length>128*1024*1024)throw new InvalidDataException("项目超过大小限制。");
         using var memory=new MemoryStream();using(var stream=raw.Open())stream.CopyTo(memory);
         var replay=Replay.Parse(memory.ToArray());
-        using var metadata=json.Open();var manifest=JsonSerializer.Deserialize<ProjectManifest>(metadata)??throw new InvalidDataException("项目清单为空。");
+        using var metadata=json.Open();var manifest=JsonSerializer.Deserialize(metadata,RecordingJsonContext.Default.ProjectManifest)??throw new InvalidDataException("项目清单为空。");
         if(manifest.Version is not (1 or 2) || manifest.Edits is null || string.IsNullOrWhiteSpace(manifest.SourceName))throw new InvalidDataException("不支持的项目版本。");
         var project=new TasProject(replay,manifest.SourceName);
         if(manifest.Version==2) {

@@ -29,7 +29,7 @@ public partial class MainWindow {
             return Path.Combine(current,"settings.json");
         }
     }
-    void SaveSettings(){Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);File.WriteAllText(SettingsPath,JsonSerializer.Serialize(new{GameExe=gameExe,Embedded=EmbeddedOption.IsChecked==true}));}
+    void SaveSettings(){Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);File.WriteAllText(SettingsPath,JsonSerializer.Serialize(new EditorSettings(gameExe,EmbeddedOption.IsChecked==true),SettingsJsonContext.Default.EditorSettings));}
     async void ChangeGameClick(object? sender,RoutedEventArgs e)=>await Operate(async()=>{gameExe=null;await PickGame();});
     void InitializeGamePanel() {
         try {if(File.Exists(SettingsPath)){using var settings=JsonDocument.Parse(File.ReadAllText(SettingsPath));gameExe=settings.RootElement.GetProperty("GameExe").GetString();EmbeddedOption.IsChecked=settings.RootElement.GetProperty("Embedded").GetBoolean();}}catch{gameExe=null;}
@@ -84,7 +84,7 @@ public partial class MainWindow {
         }
         manifest=Path.Combine(root,"session.json");
         if(File.Exists(manifest)) {
-            var metadata=JsonSerializer.Deserialize<SessionMetadata>(File.ReadAllText(manifest))!;
+            var metadata=JsonSerializer.Deserialize(File.ReadAllText(manifest),RecordingJsonContext.Default.SessionMetadata)!;
             foreach(var entry in metadata.InitialFiles)if(Path.GetFileName(entry.Path)!=entry.Path || FileGameSession.HashFile(Path.Combine(initial,entry.Path))!=entry.Sha256)throw new InvalidDataException("分支初始存档校验失败。");
         }
     }

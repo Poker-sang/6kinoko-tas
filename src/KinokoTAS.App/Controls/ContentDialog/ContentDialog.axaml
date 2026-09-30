@@ -64,13 +64,13 @@
                             IsVisible="{TemplateBinding Title,
                                                         Converter={x:Static ObjectConverters.IsNotNull}}">
                             <ContentPresenter.DataTemplates>
-                                <DataTemplate DataType="{x:Type x:String}">
+                                <DataTemplate x:DataType="{x:Type x:String}" DataType="{x:Type x:String}">
                                     <TextBlock
                                         FontFamily="{DynamicResource ContentControlThemeFontFamily}"
                                         FontSize="20"
                                         FontWeight="SemiBold"
                                         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                        Text="{Binding}"
+                                        Text="{CompiledBinding}"
                                         TextWrapping="Wrap" />
                                 </DataTemplate>
                             </ContentPresenter.DataTemplates>
@@ -85,7 +85,7 @@
                                     <DataTemplate x:DataType="{x:Type x:String}" DataType="{x:Type x:String}">
                                         <TextBlock
                                             Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                            Text="{Binding}"
+                                            Text="{CompiledBinding}"
                                             TextWrapping="Wrap" />
                                     </DataTemplate>
                                 </ContentPresenter.DataTemplates>
