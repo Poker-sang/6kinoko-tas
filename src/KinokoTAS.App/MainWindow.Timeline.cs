@@ -37,6 +37,11 @@ public partial class MainWindow {
             liveTimeline=new();timelineSource=null;FollowLatest.IsChecked=true;await game.ResumeAsync(selectedSpeed,default);
         }
         RecordToggle.IsChecked=game.IsLive;RefreshGameView();
+        if(game.IsLive) {
+            gameKeys.Clear();game.Input(0);
+            if(game.ExternalWindow)GameWindowOrder.Activate(game.GameWindowHandle);
+            else GamePanel.Focus();
+        }
     }
     public async Task ReplayAllAsync(){RequireAppliedLayout();if(game is null)throw new InvalidOperationException("先新建或打开录制。");await game.ReplayAllAsync();UpdatePlaybackProject();FollowLatest.IsChecked=true;RefreshGameView();}
     public async Task RestartGameAsync() {

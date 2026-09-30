@@ -1,10 +1,29 @@
 using Avalonia.Controls; using Avalonia.Interactivity; using Avalonia.Platform.Storage;
 using KinokoTAS.Core; using System.Collections.ObjectModel; using System.Diagnostics;
+using Avalonia.Input; using Avalonia.VisualTree;
 namespace KinokoTAS.App;
 public partial class MainWindow {
     readonly ObservableCollection<FrameBookmark> bookmarks=[];
     string? bookmarkFile,lastSaved;
-    void InitializeLibrary(){BookmarkList.ItemsSource=bookmarks;Timeline.Bookmarks=bookmarks;bookmarks.CollectionChanged+=(_,_)=>Timeline.InvalidateVisual();FrameScroll.AddHandler(Avalonia.Input.InputElement.PointerPressedEvent,(_,_)=>{if(!followScroll)FollowLatest.IsChecked=false;},RoutingStrategies.Tunnel,true);UpdateGamePath();}
+    void InitializeLibrary(){BookmarkList.ItemsSource=bookmarks;Timeline.Bookmarks=bookmarks;bookmarks.CollectionChanged+=(_,_)=>Timeline.InvalidateVisual();FrameScroll.AddHandler(Avalonia.Input.InputElement.PointerPressedEvent,(_,_)=>{if(!followScroll)FollowLatest.IsChecked=false;},RoutingStrategies.Tunnel,true);UpdateGamePath();
+        BookmarkList.AddHandler(InputElement.PointerPressedEvent,BookmarkPointerPressed,RoutingStrategies.Tunnel,true);
+    }
+    void BookmarkPointerPressed(object? sender,PointerPressedEventArgs e) {
+        if(busy||gameCommand)return;
+        var visual=e.Source as Avalonia.Visual;
+        var item=visual as ListBoxItem ?? visual?.GetVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
+        if(item?.Content is not FrameBookmark mark)return;
+        var buttons=e.GetCurrentPoint(BookmarkList).Properties;
+        if(buttons.IsRightButtonPressed) {
+            BookmarkList.SelectedItem=mark;BookmarkList.ContextMenu?.Close();
+            var remove=new MenuItem{Header="删除重点"};
+            remove.Click+=(_,_)=>RemoveBookmark(mark);
+            BookmarkList.ContextMenu=new ContextMenu{ItemsSource=new[]{remove}};
+            BookmarkList.ContextMenu.Open(item);e.Handled=true;
+        }else if(buttons.IsLeftButtonPressed && e.ClickCount==2) {
+            BookmarkList.SelectedItem=mark;FollowLatest.IsChecked=false;SelectFrame(mark.Frame);e.Handled=true;
+        }
+    }
     void UpdateGamePath(){GamePathLabel.Text=gameExe is null?"当前游戏：尚未选择（首次开始时选择一次）":"当前游戏："+gameExe;ToolTip.SetTip(GamePathLabel,gameExe);}
     void ShowSaved(string path){lastSaved=path;SavedPathLabel.Text="已保存："+path;OpenSavedButton.IsEnabled=true;}
     string BookmarkCache(Replay replay)=>Path.Combine(Path.GetDirectoryName(SettingsPath)!,"bookmarks",Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(replay.Bytes.Span))+".json");
@@ -39,7 +58,8 @@ public partial class MainWindow {
         try{GameStatus.Text=$"正在重播返回：{mark.Name}";await game.SeekAsync(mark.Frame,cancel.Token);UpdatePlaybackProject();RefreshGameView();SelectFrame(mark.Frame);}
         finally{seeking=null;}
     }
-    void RemoveBookmarkClick(object? s,RoutedEventArgs e){if(busy||gameCommand)return;try{if(BookmarkList.SelectedItem is FrameBookmark mark){bookmarks.Remove(mark);PersistBookmarks();}}catch(Exception ex){StatusLabel.Text=ex.Message;}}
+    void RemoveBookmark(FrameBookmark mark){if(busy||gameCommand)return;try{bookmarks.Remove(mark);PersistBookmarks();}catch(Exception ex){StatusLabel.Text=ex.Message;}}
+    void RemoveBookmarkClick(object? s,RoutedEventArgs e){if(BookmarkList.SelectedItem is FrameBookmark mark)RemoveBookmark(mark);}
     async void SaveRecordingClick(object? s,RoutedEventArgs e)=>await Operate(SaveRecordingAsync);
     async Task SaveRecordingAsync() {
         if(Project?.InvalidFrom is not null)throw new InvalidOperationException("输入修改尚未执行。请先点击“应用修改”，或另存输入草稿项目。");
