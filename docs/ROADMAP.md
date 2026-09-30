@@ -10,8 +10,8 @@
 - [x] Restore previous overwrite, including frame position, bookmarks and draft.
 - [x] Editor shortcuts, operation progress/cancellation, failure isolation.
 - [x] Public GitHub repository with master as default.
-- [ ] Playback speed controls.
-- [ ] Insert/delete frames and drag painting.
+- [x] Playback speed controls and accelerated seek/resimulation.
+- [x] Insert/delete frames and drag painting with grouped undo.
 - [ ] Save-state seeking after engine serialization is complete.
 - [ ] Native Linux/macOS editor validation.
 
