@@ -120,6 +120,7 @@ public partial class MainWindow {
         Set(gameKeys.Contains(Key.Space),4);Set(gameKeys.Contains(Key.Enter),11);Set(gameKeys.Contains(Key.Escape),13);return m;
     }
     public void RefreshGameView() {
+        UpdatePlaybackButtons(null);
         BindLayoutProject();
         CancelOperationButton.IsEnabled=seeking is not null;
         ApplyEditsButton.IsEnabled=!gameCommand && !busy && Project?.InvalidFrom is not null && game?.IsLive!=true;
@@ -134,6 +135,7 @@ public partial class MainWindow {
                 if(handle!=0 && handle!=orderedGameWindow && GameWindowOrder.Attach(handle,TryGetPlatformHandle()?.Handle??0))orderedGameWindow=handle;
             }
             game.Input(CurrentMask());var state=game.ReadState();if(state is null)return;
+            UpdatePlaybackButtons(state);
             RefreshTimeline(state);RecordToggle.IsChecked=game.IsLive;
             var frame=game.ExternalWindow?null:game.ReadPreview();
             if(frame is not null && frame.Completed!=previewCount) {
@@ -149,6 +151,14 @@ public partial class MainWindow {
             if(game.ExternalWindow){GameStatus.Text=$"{phase} · 在独立游戏窗口操作，F9 播放/暂停，F10 前进一帧。切换窗口不会自动暂停。";return;}
             GameStatus.Text=$"画面帧 {previewCount-1} / 逻辑帧 {state.Completed-1} · "+(game.IsLive?"接管输入：方向键、Z 跳跃/确认、X 攻击/加速/搬运、A 暂停、C 道具、F10 执行一帧。点击画面获取焦点。":"双击时间轴帧号或使用定位按钮查看。回退会从头重播，请等待。");
         }catch(Exception ex){EngineLabel.Text="引擎错误";GameStatus.Text=ex.Message;}
+    }
+    void UpdatePlaybackButtons(SessionState? state) {
+        bool running=state?.Phase is "playing" or "live";
+        PlayGameButton.IsVisible=!running;PauseGameButton.IsVisible=running;
+        PlayGameButton.IsEnabled=game?.IsRunning==true && state?.Phase.EndsWith("paused")==true
+            && (game.IsLive || state.Completed<state.Total) && !gameCommand && !busy && seeking is null
+            && Project?.HasLayoutChanges!=true;
+        PauseGameButton.IsEnabled=running;
     }
     async Task SeekGame(int frame) {if(game is not null)await Operate(async()=>{
         if(Project?.HasLayoutChanges==true)throw new InvalidOperationException("帧布局已修改，请先应用修改，再定位游戏画面。");
