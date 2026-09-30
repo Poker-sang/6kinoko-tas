@@ -103,6 +103,19 @@ internal static class Program {
    Check(window.FindControl<Image>("GameImage")!.Source is not null,"embedded preview arrives in UI");
    var addMark=window.AddBookmarkAsync("测试重点");while(!addMark.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}addMark.GetAwaiter().GetResult();
    Check(window.FindControl<ListBox>("BookmarkList")!.SelectedItem is FrameBookmark {Frame:0},"bookmark captures completed game frame");
+   window.AddBookmarkAt(12,"pointer-target");Dispatcher.UIThread.RunJobs();
+   var bookmarkList=window.FindControl<ListBox>("BookmarkList")!;
+   var bookmarkItem=bookmarkList.GetVisualDescendants().OfType<ListBoxItem>().Single(item=>item.Content is FrameBookmark {Name:"pointer-target"});
+   var bookmarkPoint=bookmarkItem.TranslatePoint(new Point(8,8),window)!.Value;
+   window.MouseDown(bookmarkPoint,MouseButton.Left);window.MouseUp(bookmarkPoint,MouseButton.Left);
+   window.MouseDown(bookmarkPoint,MouseButton.Left);window.MouseUp(bookmarkPoint,MouseButton.Left);Dispatcher.UIThread.RunJobs();
+   Check(timeline.SelectedFrame==12 && uiSession.ReadState()!.Completed==1,"bookmark double click selects timeline without seeking engine");
+   bookmarkList.SelectedIndex=0;
+   window.MouseDown(bookmarkPoint,MouseButton.Right);window.MouseUp(bookmarkPoint,MouseButton.Right);Dispatcher.UIThread.RunJobs();
+   Check(bookmarkList.SelectedItem is FrameBookmark {Name:"pointer-target"} && bookmarkList.ContextMenu?.IsOpen==true,"bookmark right click targets clicked item");
+   var deleteMark=(MenuItem)bookmarkList.ContextMenu!.ItemsSource!.Cast<object>().Single();
+   deleteMark.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));bookmarkList.ContextMenu.Close();Dispatcher.UIThread.RunJobs();
+   Check(bookmarkList.Items.OfType<FrameBookmark>().All(mark=>mark.Name!="pointer-target") && bookmarkList.Items.OfType<FrameBookmark>().Any(mark=>mark.Name=="测试重点"),"context deletion preserves other bookmarks");
    using(var screenshot=window.CaptureRenderedFrame()??throw new Exception("No rendered UI"))screenshot.Save(Path.Combine(output,"editor.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var stop=window.StopGameSessionAsync();while(!stop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}stop.GetAwaiter().GetResult();
    window.Project.Undo();Check(window.Project.EditCount==0,"UI undo");
@@ -134,6 +147,7 @@ internal static class Program {
    window.Project.Undo();
    var beforeCover=window.Project.Source.Bytes.ToArray();
    var cover=window.ToggleRecordingAsync();while(!cover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}cover.GetAwaiter().GetResult();
+   Check(window.FindControl<Border>("GamePanel")!.IsFocused,"record takeover focuses embedded game preview");
    var undoCover=window.RestoreOverwriteAsync();while(!undoCover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}undoCover.GetAwaiter().GetResult();
    Check(window.Project.Source.Bytes.Span.SequenceEqual(beforeCover),"record takeover undo restores whole source tail");
    // Shortcuts are routed through the preview, while text undo remains local.
