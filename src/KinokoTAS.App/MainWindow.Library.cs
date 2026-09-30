@@ -7,6 +7,7 @@ public partial class MainWindow {
     string? bookmarkFile,lastSaved;
     void InitializeLibrary(){BookmarkList.ItemsSource=bookmarks;Timeline.Bookmarks=bookmarks;bookmarks.CollectionChanged+=(_,_)=>Timeline.InvalidateVisual();FrameScroll.AddHandler(Avalonia.Input.InputElement.PointerPressedEvent,(_,_)=>{if(!followScroll)FollowLatest.IsChecked=false;},RoutingStrategies.Tunnel,true);UpdateGamePath();
         BookmarkList.AddHandler(InputElement.PointerPressedEvent,BookmarkPointerPressed,RoutingStrategies.Tunnel,true);
+        BookmarkList.ContextRequested+=(_,e)=>{if(BookmarkList.ContextMenu is { } menu){menu.Open(BookmarkList);e.Handled=true;}};
     }
     void BookmarkPointerPressed(object? sender,PointerPressedEventArgs e) {
         if(busy||gameCommand)return;
@@ -21,7 +22,6 @@ public partial class MainWindow {
             var rename=new MenuItem{Header="重命名重点"};
             rename.Click+=async (_,_)=>await Operate(()=>RenameBookmarkAsync(mark));
             BookmarkList.ContextMenu=new ContextMenu{ItemsSource=new[]{rename,remove}};
-            e.Handled=true;
         }else if(buttons.IsLeftButtonPressed && e.ClickCount==2) {
             BookmarkList.SelectedItem=mark;FollowLatest.IsChecked=false;SelectFrame(mark.Frame);e.Handled=true;
         }
