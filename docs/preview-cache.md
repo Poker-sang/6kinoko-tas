@@ -13,3 +13,10 @@ Full rewind still needs serialization of the VM and native scene graph.
 
 Validation: bounded eviction, image ownership, oversized frames and invalidation
 are covered by synthetic checks. No actual gameplay was performed.
+
+Windows delivery: `artifacts/windows-editor-19/KinokoTAS.App.exe`, source
+`e10895b`. Release build and the complete synthetic check suite passed in
+`artifacts/build-50` and `artifacts/checks-50`. Earlier `build-49` output is
+retained: its check run exposed a Windows mailbox replacement access conflict;
+bounded retry was added before the successful new batch. Publication logs and
+source commit are retained alongside the executable. Game engine is unchanged.
