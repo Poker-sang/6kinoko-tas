@@ -36,7 +36,7 @@ public partial class MainWindow : Window {
     }
     private async Task OpenPicker() {
         if(busy||gameCommand)return;
-        var files=await StorageProvider.OpenFilePickerAsync(new(){Title="打开录制或 TAS 项目",AllowMultiple=false,FileTypeFilter=[new("Kinoko TAS"){Patterns=["*.krec","*.ktas"]}]});
+        var files=await StorageProvider.OpenFilePickerAsync(new(){Title="打开录制或 TAS 项目",AllowMultiple=false,FileTypeFilter=[new("6kinoko TAS"){Patterns=["*.krec","*.ktas"]}]});
         if(files.Count>0 && files[0].TryGetLocalPath() is string p) {
             var previous=Project;await OpenPathAsync(p);
             if(!ReferenceEquals(previous,Project) && sourcePath==Path.GetFullPath(p) && Project?.Source.Count>0)await Operate(()=>LaunchGame(false));
@@ -67,7 +67,7 @@ public partial class MainWindow : Window {
     private void Refresh() {
         BindLayoutProject();
         if(Project is null)return;
-        Title=$"{(dirty?"* ":"")}{Project.SourceName} — Kinoko TAS";
+        Title=$"{(dirty?"* ":"")}{Project.SourceName} — 6kinoko TAS";
         DocumentLabel.Text=$"{Project.SourceName}  ·  {Project.FrameCount:N0} 帧 / {Project.FrameCount/60.0:F2} 秒  ·  {Project.EditCount:N0} 处编辑";
         UndoButton.IsEnabled=Project.CanUndo;RedoButton.IsEnabled=Project.CanRedo;
         int frame=Math.Clamp(Timeline.SelectedFrame,0,Math.Max(0,Project.FrameCount-1));

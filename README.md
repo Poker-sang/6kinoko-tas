@@ -1,4 +1,4 @@
-# Kinoko TAS
+# 6kinoko TAS
 
 C# / .NET 10 + Avalonia 12 的《魔理沙与六个蘑菇》TAS 编辑器，配合 [6kinoko-modern](https://github.com/Poker-sang/6kinoko-modern) 使用。不含游戏程序和原版 DAT。
 

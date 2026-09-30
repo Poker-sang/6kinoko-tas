@@ -15,7 +15,20 @@ public partial class MainWindow {
     int orderedProcess;
     string? gameExe;
     string? operationError;
-    static string SettingsPath=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"KinokoTAS","settings.json");
+    static string SettingsPath {
+        get {
+            var root=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var current=Path.Combine(root,"6kinokoTAS");var legacy=Path.Combine(root,"KinokoTAS");
+            if(!Directory.Exists(current) && Directory.Exists(legacy)) {
+                Directory.CreateDirectory(current);
+                foreach(var file in Directory.GetFiles(legacy,"*",SearchOption.AllDirectories)) {
+                    var destination=Path.Combine(current,Path.GetRelativePath(legacy,file));
+                    Directory.CreateDirectory(Path.GetDirectoryName(destination)!);File.Copy(file,destination,false);
+                }
+            }
+            return Path.Combine(current,"settings.json");
+        }
+    }
     void SaveSettings(){Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);File.WriteAllText(SettingsPath,JsonSerializer.Serialize(new{GameExe=gameExe,Embedded=EmbeddedOption.IsChecked==true}));}
     async void ChangeGameClick(object? sender,RoutedEventArgs e)=>await Operate(async()=>{gameExe=null;await PickGame();});
     void InitializeGamePanel() {
