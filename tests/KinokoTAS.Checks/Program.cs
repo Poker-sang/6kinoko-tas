@@ -101,6 +101,7 @@ internal static class Program {
    var previewDeadline=DateTime.UtcNow.AddSeconds(10);
    while(window.FindControl<Image>("GameImage")!.Source is null && DateTime.UtcNow<previewDeadline){window.RefreshGameView();Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}
    Check(window.FindControl<Image>("GameImage")!.Source is not null,"embedded preview arrives in UI");
+   Check(window.FindControl<Control>("PlayGameButton")!.IsVisible && !window.FindControl<Control>("PauseGameButton")!.IsVisible,"paused session shows only playback command");
    var addMark=window.AddBookmarkAsync("测试重点");while(!addMark.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}addMark.GetAwaiter().GetResult();
    Check(window.FindControl<ListBox>("BookmarkList")!.SelectedItem is FrameBookmark {Frame:0},"bookmark captures completed game frame");
    string pointerName="pointer-"+Path.GetFileName(output),renamedName="renamed-"+Path.GetFileName(output);
@@ -165,6 +166,7 @@ internal static class Program {
    var beforeCover=window.Project.Source.Bytes.ToArray();
    var cover=window.ToggleRecordingAsync();while(!cover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}cover.GetAwaiter().GetResult();
    Check(window.FindControl<Border>("GamePanel")!.IsFocused,"record takeover focuses embedded game preview");
+   Check(!window.FindControl<Control>("PlayGameButton")!.IsVisible && window.FindControl<Control>("PauseGameButton")!.IsVisible,"recording session shows only pause command");
    var savePath=Path.Combine(output,"ui-current-save.krec");
    var saveLive=window.SaveRecordingToAsync(savePath);while(!saveLive.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}saveLive.GetAwaiter().GetResult();
    Check(window.RecordingSavePath==Path.GetFullPath(savePath),"save destination retained");
