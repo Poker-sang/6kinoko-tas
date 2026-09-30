@@ -167,9 +167,9 @@ public partial class MainWindow {
     }
     
     async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(!dirty||await ConfirmDiscard())await LaunchGame(true);});
-    async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(selectedSpeed,default);GamePanel.Focus();});
+    async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{RequireAppliedLayout();if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(selectedSpeed,default);GamePanel.Focus();});
     async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}
-    async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});
+    async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{RequireAppliedLayout();if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});
     async void TakeoverClick(object? s,RoutedEventArgs e)=>await Operate(ToggleRecordingAsync);
     
     void GamePointerPressed(object? s,PointerPressedEventArgs e){GamePanel.Focus();e.Handled=true;}

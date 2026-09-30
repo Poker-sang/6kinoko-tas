@@ -119,6 +119,13 @@ internal static class Program {
    using(var frameTools=window.CaptureRenderedFrame()??throw new Exception("No frame tools image"))frameTools.Save(Path.Combine(output,"frame-tools.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var editingSession=new FileGameSession(fakeExe,Path.Combine(output,"ui-edit-session"),replayPath,Path.Combine(output,"initial"),new string('a',64),true);
    var editConnect=window.AttachGameSessionAsync(editingSession);while(!editConnect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}editConnect.GetAwaiter().GetResult();
+   window.InsertEmptyFrames(3,1);bool blocked=false;
+   try{window.ReplayAllAsync().GetAwaiter().GetResult();}catch(InvalidOperationException){blocked=true;}
+   Check(blocked&&editingSession.ReadState()!.Completed==1,"unapplied layout cannot play the old source under shifted frame numbers");window.Project!.Undo();
+   window.FindControl<ComboBox>("SpeedPicker")!.SelectedIndex=4;
+   var speedDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(editingSession.PlaybackSpeed!=4&&DateTime.UtcNow<speedDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(editingSession.PlaybackSpeed==4,"speed picker controls connected engine");
    window.Project.SetRange(0,0,4,false);
    var apply=window.ApplyEditsAsync();while(!apply.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}apply.GetAwaiter().GetResult();
    Check(window.Project.EditCount==0 && window.Project.Source.Held(0,4)==0,"UI adopts verified edited recording");

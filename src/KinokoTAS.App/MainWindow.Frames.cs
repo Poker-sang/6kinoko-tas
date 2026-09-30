@@ -45,6 +45,7 @@ public partial class MainWindow {
         if(game?.IsLive==true){StatusLabel.Text="先关闭录制开关，再编辑帧。";return false;}
         Timeline.FinishPainting();return true;
     }
+    void RequireAppliedLayout(){if(Project?.HasLayoutChanges==true)throw new InvalidOperationException("帧布局已修改，请先应用修改，再播放或定位游戏画面。");}
     public void InsertEmptyFrames(int before,int count) {
         if(!CanEditFrames())return;
         BindLayoutProject();Project!.InsertFrames(before,count);FollowLatest.IsChecked=false;SelectFrame(before);

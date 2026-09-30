@@ -63,7 +63,7 @@ public partial class MainWindow {
         if(dialogHost?.IsOpen==true)return;
         // Function keys work even when preview owns focus; text-editing keys stay local.
         if(e.Key==Key.Escape && seeking is not null){e.Handled=true;seeking.Cancel();return;}
-        if(e.Key==Key.F9){e.Handled=true;await Operate(async()=>{if(game is null)return;if(game.ReadState()?.Phase.EndsWith("paused")==true)await game.ResumeAsync(selectedSpeed,default);else await game.PauseAsync(default);});}
+        if(e.Key==Key.F9){e.Handled=true;await Operate(async()=>{if(game is null)return;if(game.ReadState()?.Phase.EndsWith("paused")==true){RequireAppliedLayout();await game.ResumeAsync(selectedSpeed,default);}else await game.PauseAsync(default);});}
         else if(e.Key==Key.F10){e.Handled=true;StepGameClick(sender,e);}
         else if(e.Key==Key.F8){e.Handled=true;await Operate(ToggleRecordingAsync);}
         else if(e.Key==Key.F6){e.Handled=true;await Operate(()=>AddBookmarkAsync(BookmarkName.Text??""));}

@@ -38,7 +38,7 @@ public partial class MainWindow {
         }
         RecordToggle.IsChecked=game.IsLive;RefreshGameView();
     }
-    public async Task ReplayAllAsync(){if(game is null)throw new InvalidOperationException("先新建或打开录制。");await game.ReplayAllAsync();UpdatePlaybackProject();FollowLatest.IsChecked=true;RefreshGameView();}
+    public async Task ReplayAllAsync(){RequireAppliedLayout();if(game is null)throw new InvalidOperationException("先新建或打开录制。");await game.ReplayAllAsync();UpdatePlaybackProject();FollowLatest.IsChecked=true;RefreshGameView();}
     public async Task RestartGameAsync() {
         if(game is null){await LaunchGame(false);return;}
         using var cancel=new CancellationTokenSource();seeking=cancel;seekTarget=game.ReadState()?.Completed??1;
