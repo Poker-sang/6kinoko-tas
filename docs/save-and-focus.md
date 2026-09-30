@@ -22,3 +22,18 @@ the game process, then requests focus-v1. The main SDL thread raises its own
 window. Embedded sessions focus the preview as before. Older engines retain
 the direct activation fallback. Windows permission grant is the narrow native
 boundary; window activation in the engine uses SDL on every platform.
+
+## Delivery
+
+Editor: `artifacts/windows-editor-24/KinokoTAS.App.exe`, source `5d62e21`.
+Game: `C:/WorkSpace/6kinoko-modern/runtime-builds/modern-x64-tas-live-save-01/kinoko_modern_gpu.exe`,
+source `7263d4df`. Select this new game executable before creating a new session.
+The current session remains tied to its original executable.
+
+Editor Release build and full synthetic checks passed in `artifacts/build-63`
+and `artifacts/checks-63`. Checks cover repeated saves without a picker, complete
+live packages, unchanged process/mode, and continued recording after export.
+Game's replay, runtime replay and TAS edit contracts passed; DAT hashes verified.
+The real runtime/Squirrel test exports a paused live recording, then resumes
+the original writer. No actual gameplay or physical foreground activation was
+agent-tested. All prior output is retained.

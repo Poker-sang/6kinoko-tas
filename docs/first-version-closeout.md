@@ -6,10 +6,10 @@
 
 ## 当前版本
 
-- 编辑器：`C:/WorkSpace/6kinoko-tas/artifacts/windows-editor-23/KinokoTAS.App.exe`
-  （交互优化源码 `557b76c`，需 .NET 10）。
-- 游戏：`C:/WorkSpace/6kinoko-modern/runtime-builds/modern-x64-tas-fast-seek-03/kinoko_modern_gpu.exe`
-  （源码 `d64dac9d`）。游戏路径需选择此新版以启用不限速定位。
+- 编辑器：`C:/WorkSpace/6kinoko-tas/artifacts/windows-editor-24/KinokoTAS.App.exe`
+  （保存优化源码 `5d62e21`，需 .NET 10）。
+- 游戏：`C:/WorkSpace/6kinoko-modern/runtime-builds/modern-x64-tas-live-save-01/kinoko_modern_gpu.exe`
+  （源码 `7263d4df`）。选择此新版以启用不停进程保存和游戏自身焦点请求。
 - 编辑器构建和完整合成检查：`artifacts/build-51`、`artifacts/checks-51`。
 - 游戏构建、四项契约检查、隐藏窗口 GPU 检查和 DAT 校验：
   `C:/WorkSpace/6kinoko-modern/build-runs/modern-x64-tas-fast-seek-03`。
@@ -43,3 +43,5 @@
 `artifacts/checks-62`；覆盖重点双击不定位、右键目标、重命名保留帧号、
 删除保留其他重点及内嵌录制焦点。此前失败检查及历史产物均保留。
 独立窗口焦点调用已编译，未执行真实游戏的前台切换验证；游戏引擎未改动。
+
+后续保存与焦点修正见 [save-and-focus.md](save-and-focus.md)；该批更新了游戏引擎。
