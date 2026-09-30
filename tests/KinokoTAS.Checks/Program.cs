@@ -111,8 +111,6 @@ internal static class Program {
    window.MouseDown(bookmarkPoint,MouseButton.Left);window.MouseUp(bookmarkPoint,MouseButton.Left);
    window.MouseDown(bookmarkPoint,MouseButton.Left);window.MouseUp(bookmarkPoint,MouseButton.Left);Dispatcher.UIThread.RunJobs();
    Check(timeline.SelectedFrame==12 && uiSession.ReadState()!.Completed==1,"bookmark double click selects timeline without seeking engine");
-   bookmarkList.SelectedIndex=0;
-   bookmarkList.ScrollIntoView(bookmarkList.Items.OfType<FrameBookmark>().Single(mark=>mark.Name==pointerName));
    Dispatcher.UIThread.RunJobs();
    bookmarkItem=bookmarkList.GetVisualDescendants().OfType<ListBoxItem>().Single(item=>item.Content is FrameBookmark mark && mark.Name==pointerName);
    bookmarkPoint=bookmarkItem.TranslatePoint(new Point(8,8),window)!.Value;
