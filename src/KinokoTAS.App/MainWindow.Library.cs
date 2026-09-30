@@ -8,16 +8,17 @@ public partial class MainWindow {
     void UpdateGamePath(){GamePathLabel.Text=gameExe is null?"当前游戏：尚未选择（首次开始时选择一次）":"当前游戏："+gameExe;ToolTip.SetTip(GamePathLabel,gameExe);}
     void ShowSaved(string path){lastSaved=path;SavedPathLabel.Text="已保存："+path;OpenSavedButton.IsEnabled=true;}
     string BookmarkCache(Replay replay)=>Path.Combine(Path.GetDirectoryName(SettingsPath)!,"bookmarks",Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(replay.Bytes.Span))+".json");
-    void LoadBookmarksFor(Replay replay,string path) {
+    void LoadBookmarksFor(Replay replay,string path,int? frameCount=null) {
         bookmarkFile=BookmarkCache(replay);bookmarks.Clear();
-        var stored=File.Exists(bookmarkFile)?bookmarkFile:path+".bookmarks.json";
-        var marks=File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,replay.Count):Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)&&RecordingPackage.IsPackage(path)?RecordingPackage.Load(path).Bookmarks:[];
+        var stored=path.EndsWith(".ktas",StringComparison.OrdinalIgnoreCase)&&File.Exists(path+".bookmarks.json")?path+".bookmarks.json":File.Exists(bookmarkFile)?bookmarkFile:path+".bookmarks.json";
+        var marks=File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,frameCount??replay.Count):Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)&&RecordingPackage.IsPackage(path)?RecordingPackage.Load(path).Bookmarks:[];
         foreach(var mark in marks)bookmarks.Add(mark);
     }
     void PersistBookmarks(){if(bookmarkFile is not null)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);}
     public async Task AddBookmarkAsync(string name) {
         int frame;
-        if(game is not null){await game.PauseAsync(default);frame=checked((int)(game.ReadState()!.Completed-1));}
+        if(Project?.HasLayoutChanges==true)frame=Timeline.SelectedFrame;
+        else if(game is not null){await game.PauseAsync(default);frame=checked((int)(game.ReadState()!.Completed-1));}
         else if(Project?.Source.Count>0)frame=Timeline.SelectedFrame;
         else throw new InvalidOperationException("先新建或打开录制。");
         if(frame<0)throw new InvalidOperationException("请等待首帧完成。");
@@ -31,6 +32,7 @@ public partial class MainWindow {
     async void AddBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(()=>AddBookmarkAsync(BookmarkName.Text??""));
     async void ReturnBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(ReturnSelectedBookmarkAsync);
     public async Task ReturnSelectedBookmarkAsync(){
+        if(Project?.HasLayoutChanges==true)throw new InvalidOperationException("请先应用帧布局修改，再返回书签画面。");
         if(BookmarkList.SelectedItem is not FrameBookmark mark)return;
         if(game is null){await LaunchGame(false);if(game is null)return;}
         using var cancel=new CancellationTokenSource();seeking=cancel;seekTarget=mark.Frame+1;

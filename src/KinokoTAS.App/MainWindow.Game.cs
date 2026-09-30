@@ -29,6 +29,7 @@ public partial class MainWindow {
         active.Input(0);try{await active.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}
     }
     async Task Operate(Func<Task> action) {
+        Timeline.FinishPainting();
         if(gameCommand)return;gameCommand=true;
         try{operationError=null;await action();}catch(OperationCanceledException){operationError="操作已取消，原录制与草稿保留。";GameStatus.Text=operationError;}catch(Exception ex){operationError="操作失败："+ex.Message;GameStatus.Text=operationError;}
         finally{gameCommand=false;}
@@ -97,7 +98,7 @@ public partial class MainWindow {
     public async Task AttachGameSessionAsync(FileGameSession session) {
         await EndGame(false);recoveries.Clear();
         GameStatus.Text="启动引擎，等待首帧…";previewCount=-1;gameKeys.Clear();
-        try {await session.StartAsync();}
+        try {await session.StartAsync();if(selectedSpeed!=1)await session.SetSpeedAsync(selectedSpeed);}
         catch {await session.DisposeAsync();EngineLabel.Text="启动失败";throw;}
         if(session.IsLive){
             if(Project is not null)Project.Changed-=OnChanged;
@@ -117,6 +118,7 @@ public partial class MainWindow {
         Set(gameKeys.Contains(Key.Space),4);Set(gameKeys.Contains(Key.Enter),11);Set(gameKeys.Contains(Key.Escape),13);return m;
     }
     public void RefreshGameView() {
+        BindLayoutProject();
         CancelOperationButton.IsEnabled=seeking is not null;
         ApplyEditsButton.IsEnabled=!gameCommand && !busy && Project?.InvalidFrom is not null && game?.IsLive!=true;
         RestoreOverwriteButton.IsEnabled=!gameCommand && !busy && game is not null && recoveries.Count>0;
@@ -147,6 +149,7 @@ public partial class MainWindow {
         }catch(Exception ex){EngineLabel.Text="引擎错误";GameStatus.Text=ex.Message;}
     }
     async Task SeekGame(int frame) {if(game is not null)await Operate(async()=>{
+        if(Project?.HasLayoutChanges==true)throw new InvalidOperationException("帧布局已修改，请先应用修改，再定位游戏画面。");
         using var token=new CancellationTokenSource();seeking=token;seekTarget=frame+1;
         try{GameStatus.Text="正在重播定位…";await game.SeekAsync(frame,token.Token);UpdatePlaybackProject();RefreshGameView();}finally{seeking=null;}
     });}
@@ -164,7 +167,7 @@ public partial class MainWindow {
     }
     
     async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(!dirty||await ConfirmDiscard())await LaunchGame(true);});
-    async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(1,default);GamePanel.Focus();});
+    async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(selectedSpeed,default);GamePanel.Focus();});
     async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}
     async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});
     async void TakeoverClick(object? s,RoutedEventArgs e)=>await Operate(ToggleRecordingAsync);

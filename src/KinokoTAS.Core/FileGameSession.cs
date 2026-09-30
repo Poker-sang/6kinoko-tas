@@ -14,6 +14,8 @@ public sealed class FileGameSession : IGameSession {
     readonly string executable,root,identity;
     string? source;
     TasProject? editPlan;
+    public double PlaybackSpeed {get;private set;}=1;
+    bool Supports(string feature)=>File.Exists(Path.Combine(bridge,"capabilities.txt")) && File.ReadAllText(Path.Combine(bridge,"capabilities.txt")).Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries).Contains(feature);
     public event Action<SessionState>? Progress;
     public string? PlaybackSource=>source;
     public string CurrentRecordingPath=>IsLive?BranchPath:source??BranchPath;
@@ -47,7 +49,7 @@ public sealed class FileGameSession : IGameSession {
         var files=Directory.GetFiles(Path.Combine(root,"initial")).Order().Select(p=>new InitialFile(Path.GetFileName(p),HashFile(p))).ToArray();
         File.WriteAllText(Path.Combine(root,"session.json"),JsonSerializer.Serialize(new SessionMetadata(1,identity,EngineHash,replayPath??"",files),new JsonSerializerOptions{WriteIndented=true}));
     }
-    public FileGameSession CreatePlaybackSession(string replayPath)=>new(executable,Path.Combine(Path.GetDirectoryName(root)!,"session-"+Guid.NewGuid().ToString("N")),replayPath,Path.Combine(root,"initial"),identity,ExternalWindow);
+    public FileGameSession CreatePlaybackSession(string replayPath)=>new(executable,Path.Combine(Path.GetDirectoryName(root)!,"session-"+Guid.NewGuid().ToString("N")),replayPath,Path.Combine(root,"initial"),identity,ExternalWindow){PlaybackSpeed=PlaybackSpeed};
     public async Task<FileGameSession> ResimulateAsync(TasProject project,IProgress<SimulationProgress>? progress=null,CancellationToken ct=default) {
         if(project.InvalidFrom is null)throw new InvalidOperationException("没有待执行的输入修改。");
         if(IsLive)throw new InvalidOperationException("请先暂停录制并切换回放，再修改输入。");
@@ -57,12 +59,13 @@ public sealed class FileGameSession : IGameSession {
         var frozen=TasProject.Load(draft);
         await using var generated=CreatePlaybackSession(source);
         generated.editPlan=frozen;
-        generated.Progress+=s=>progress?.Report(new("重新模拟",s.Completed,frozen.Source.Count));
+        generated.Progress+=s=>progress?.Report(new("重新模拟",s.Completed,frozen.FrameCount));
         await generated.StartAsync(ct);
-        await generated.SendAsync("target",frozen.Source.Count,s=>s.Completed==frozen.Source.Count&&s.Phase.EndsWith("paused"),ct);
+        if(generated.Supports("pacing-v1"))await generated.EngineSpeedAsync(4,ct);
+        await generated.SendAsync("target",frozen.FrameCount,s=>s.Completed==frozen.FrameCount&&s.Phase.EndsWith("paused"),ct);
         string result=await generated.StopAsync();
         var replay=Replay.Load(result);
-        if(replay.Count!=frozen.Source.Count || replay.Identity!=frozen.Source.Identity)throw new InvalidDataException("重新模拟的录制长度或身份不匹配。");
+        if(replay.Count!=frozen.FrameCount || replay.Identity!=frozen.Source.Identity)throw new InvalidDataException("重新模拟的录制长度或身份不匹配。");
         for(int f=0;f<replay.Count;f++)for(int a=0;a<Replay.ActionCount;a++)
             if((replay.Held(f,a)>0)!=frozen.Down(f,a))throw new InvalidDataException($"重新模拟未执行预期输入：帧 {f}，动作 {a}。");
         var verified=CreatePlaybackSession(result);
@@ -102,8 +105,9 @@ public sealed class FileGameSession : IGameSession {
         process=Process.Start(start)??throw new IOException("游戏进程启动失败。");
         try {
             await WaitAsync(s=>s.Completed>=1 && s.Phase.EndsWith("paused"),TimeSpan.FromSeconds(30),ct);
-            if(editPlan is not null && (!File.Exists(Path.Combine(bridge,"capabilities.txt")) || !File.ReadAllText(Path.Combine(bridge,"capabilities.txt")).Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries).Contains("edits-v1")))
+            if(editPlan is not null && !Supports(editPlan.FrameCount==editPlan.Source.Count?"edits-v1":"edits-v2"))
                 throw new NotSupportedException("游戏版本不支持输入重新模拟，请用新版游戏程序重新打开录制。");
+            if(PlaybackSpeed!=1)await EngineSpeedAsync(PlaybackSpeed,ct);
         }
         catch{await DisposeAsync();throw;}
     }
@@ -152,9 +156,18 @@ public sealed class FileGameSession : IGameSession {
         if(!IsLive && s.Completed>=s.Total)throw new InvalidOperationException("录制已到末尾，请接管或重新定位。");
         return State(await SendAsync("target",s.Completed+1,x=>x.Completed>=s.Completed+1&&x.Phase.EndsWith("paused"),ct),identity);
     }
+    async Task EngineSpeedAsync(double speed,CancellationToken ct) {
+        if(speed is not (0.25 or 0.5 or 1 or 2 or 4))throw new ArgumentOutOfRangeException(nameof(speed));
+        if(!Supports("pacing-v1"))throw new NotSupportedException("游戏版本不支持倍速，请更新游戏程序并重新打开录制。");
+        await SendAsync("speed",(long)(speed*100),state=>true,ct);
+    }
+    public async Task SetSpeedAsync(double speed,CancellationToken ct=default) {
+        if(speed!=1 || Supports("pacing-v1"))await EngineSpeedAsync(speed,ct);
+        PlaybackSpeed=speed;
+    }
     public async Task<GameState> ResumeAsync(double speed,CancellationToken ct) {
         var current=ReadState();if(!IsLive && current is not null && current.Completed>=current.Total)throw new InvalidOperationException("录制已到末尾，请接管或重新定位。");
-        if(speed!=1)throw new NotSupportedException("首版仅支持正常速度。");
+        await SetSpeedAsync(speed,ct);
         return State(await SendAsync("run",0,s=>!s.Phase.EndsWith("paused"),ct),identity);
     }
     public async Task SeekAsync(long frame,CancellationToken ct=default) {
@@ -163,8 +176,13 @@ public sealed class FileGameSession : IGameSession {
         long target=frame+1;var replay=Replay.Load(source);if(target<1||target>replay.Count)throw new ArgumentOutOfRangeException(nameof(frame));
         await PauseAsync(ct);var state=ReadState()!;
         if(state.Completed>target){await StopAsync();await StartAsync(ct);}
-        try {await SendAsync("target",target,s=>s.Completed==target&&s.Phase.EndsWith("paused"),ct);}
+        bool accelerated=Supports("pacing-v1");
+        try {
+            if(accelerated)await EngineSpeedAsync(4,ct);
+            await SendAsync("target",target,s=>s.Completed==target&&s.Phase.EndsWith("paused"),ct);
+        }
         catch(OperationCanceledException){if(IsRunning)await PauseAsync(CancellationToken.None);throw;}
+        finally {if(accelerated && IsRunning)await EngineSpeedAsync(PlaybackSpeed,CancellationToken.None);}
     }
     async Task SealLiveAsync(CancellationToken ct) {
         if(!IsLive)return;
@@ -174,7 +192,7 @@ public sealed class FileGameSession : IGameSession {
         if(!IsLive)return;await PauseAsync(ct);long frame=ReadState()!.Completed-1;
         await SealLiveAsync(ct);await SeekAsync(Math.Max(0,frame),ct);
     }
-    public async Task ReplayAllAsync(CancellationToken ct=default){await SeekAsync(0,ct);if(ReadState()!.Total>1)await ResumeAsync(1,ct);}
+    public async Task ReplayAllAsync(CancellationToken ct=default){await SeekAsync(0,ct);if(ReadState()!.Total>1)await ResumeAsync(PlaybackSpeed,ct);}
     public async Task TakeoverAsync(CancellationToken ct=default) {if(IsLive)return;await PauseAsync(ct);Input(0);await SendAsync("takeover",0,s=>s.Phase=="live-paused",ct);IsLive=true;}
     public async Task<string> StopAsync() {
         if(process is null)return BranchPath;

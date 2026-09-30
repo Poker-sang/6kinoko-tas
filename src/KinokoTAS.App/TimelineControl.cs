@@ -7,13 +7,24 @@ public sealed class TimelineControl : Control {
     public IReadOnlyList<uint>? LiveMasks {get;set;}
     public IReadOnlyList<FrameBookmark> Bookmarks {get;set;}=[];
     public int Playhead {get;set;}=-1;
-    public int FrameCount=>LiveMasks?.Count??Project?.Source.Count??0;
+    public int FrameCount=>LiveMasks?.Count??Project?.FrameCount??0;
     public int FirstFrame {get;set;}
     public int SelectedFrame {get;set;}
     public event Action<int,int>? CellClicked;
     public event Action<int>? Scrolled;
     public event Action<int>? FrameActivated;
     public event Action<int>? BookmarkRequested;
+    public Func<int,int,bool>? BeginPainting {get;set;}
+    public event Action<int,int,int>? PaintRange;
+    public event Action? PaintCompleted;
+    int paintFrame=-1,paintAction=-1;
+    IPointer? paintingPointer;
+    public void FinishPainting() {
+        if(paintFrame<0)return;
+        paintFrame=-1;paintAction=-1;
+        var pointer=paintingPointer;paintingPointer=null;
+        PaintCompleted?.Invoke();pointer?.Capture(null);
+    }
     private static readonly Typeface Font=new("Segoe UI");
     private static readonly IBrush Muted=Brush.Parse("#8FA3BF"),Active=Brush.Parse("#247665"),Selected=Brush.Parse("#233C52"),Edited=Brush.Parse("#FFC779");
     private static void Text(DrawingContext c,string value,Point p,IBrush brush,double size=12)=>c.DrawText(new FormattedText(value,System.Globalization.CultureInfo.CurrentCulture,FlowDirection.LeftToRight,Font,size,brush),p);
@@ -58,11 +69,22 @@ public sealed class TimelineControl : Control {
             add.Click+=(_,_)=>BookmarkRequested?.Invoke(f);
             ContextMenu=new ContextMenu{ItemsSource=new[]{add}};ContextMenu.Open(this);
         }else {
+            if(action>=0 && BeginPainting?.Invoke(f,action)==true){paintFrame=f;paintAction=action;paintingPointer=e.Pointer;e.Pointer.Capture(this);}
             CellClicked?.Invoke(f,action);
             if(action<0 && e.ClickCount==2)FrameActivated?.Invoke(f);
         }
         e.Handled=true;
     }
-    protected override void OnPointerMoved(PointerEventArgs e){base.OnPointerMoved(e);var p=e.GetPosition(this);int frame=FirstFrame+(int)((p.X-FrameWidth)/CellWidth);ToolTip.SetTip(this,p.X>=FrameWidth?string.Join(" · ",Bookmarks.Where(m=>m.Frame==frame).Select(m=>m.Name)):null);}
+    protected override void OnPointerMoved(PointerEventArgs e){
+        base.OnPointerMoved(e);var point=e.GetPosition(this);
+        int frame=FirstFrame+(int)((Math.Clamp(point.X,FrameWidth,Math.Max(FrameWidth,Bounds.Width-1))-FrameWidth)/CellWidth);
+        if(paintFrame>=0 && FrameCount>0){
+            frame=Math.Clamp(frame,0,FrameCount-1);
+            PaintRange?.Invoke(Math.Min(paintFrame,frame),Math.Max(paintFrame,frame),paintAction);paintFrame=frame;e.Handled=true;
+        }
+        ToolTip.SetTip(this,point.X>=FrameWidth?string.Join(" · ",Bookmarks.Where(mark=>mark.Frame==frame).Select(mark=>mark.Name)):null);
+    }
+    protected override void OnPointerReleased(PointerReleasedEventArgs e){base.OnPointerReleased(e);FinishPainting();}
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e){base.OnPointerCaptureLost(e);FinishPainting();}
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e) {Scrolled?.Invoke(-(int)((e.Delta.X!=0?e.Delta.X:e.Delta.Y)*5));e.Handled=true;}
 }

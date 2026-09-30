@@ -5,7 +5,7 @@ public partial class MainWindow : Window {
     private bool dirty,allowClose,busy;
     private string? sourcePath;
     public MainWindow() {
-        InitializeComponent();InitializeGamePanel();InitializeLibrary();ActionPicker.ItemsSource=Replay.Labels;
+        InitializeComponent();InitializeGamePanel();InitializeLibrary();InitializeFrameTools();ActionPicker.ItemsSource=Replay.Labels;
         Timeline.CellClicked+=(frame,action)=>{if(busy||gameCommand)return;SelectFrame(frame);FollowLatest.IsChecked=false;if(action>=0){if(Timeline.LiveMasks is null)Project?.SetRange(frame,frame,action,!Project.Down(frame,action));else StatusLabel.Text="先关闭“录制”开关，再修改已录制的输入。";}};
         Timeline.FrameActivated+=async frame=>{if(!busy)await SeekGame(frame);};
         Timeline.BookmarkRequested+=frame=>{if(busy||gameCommand)return;try{AddBookmarkAt(frame,BookmarkName.Text??"");}catch(Exception ex){StatusLabel.Text=ex.Message;}};
@@ -40,17 +40,18 @@ public partial class MainWindow : Window {
         }
     }
     public async Task OpenPathAsync(string path) {
+        Timeline.FinishPainting();
         if(busy || (dirty && !await ConfirmDiscard()))return;
         busy=true;StatusLabel.Text="正在校验并读取录制…";
         try {
             var loaded=await Task.Run(()=>Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)?TasProject.Load(path):new TasProject(Replay.Load(path),Path.GetFileName(path)));
             if(game is not null)await EndGame(false);
             if(Project is not null)Project.Changed-=OnChanged;
-            Project=loaded;sourcePath=Path.GetFullPath(path);dirty=false;Project.Changed+=OnChanged;
-            LoadBookmarksFor(Project.Source,sourcePath);
+            bookmarkLayouts.Clear();recoveries.Clear();Project=loaded;sourcePath=Path.GetFullPath(path);dirty=false;Project.Changed+=OnChanged;
+            LoadBookmarksFor(Project.Source,sourcePath,Project.FrameCount);
             Timeline.LiveMasks=null;Timeline.Project=Project;Timeline.FirstFrame=0;Timeline.SelectedFrame=0;FrameScroll.Value=0;
-            FrameScroll.Maximum=Math.Max(0,Project.Source.Count-1);FrameScroll.ViewportSize=20;
-            JumpFrame.Maximum=RangeStart.Maximum=RangeEnd.Maximum=Math.Max(0,Project.Source.Count-1);
+            FrameScroll.Maximum=Math.Max(0,Project.FrameCount-1);FrameScroll.ViewportSize=20;
+            JumpFrame.Maximum=RangeStart.Maximum=RangeEnd.Maximum=Math.Max(0,Project.FrameCount-1);
             RangeStart.Value=RangeEnd.Value=JumpFrame.Value=0;
             SaveButton.IsEnabled=ExportButton.IsEnabled=true;
             HoldButton.IsEnabled=ReleaseButton.IsEnabled=Project.Source.Count>0;
@@ -60,13 +61,17 @@ public partial class MainWindow : Window {
     }
     private void OnChanged(){dirty=true;Refresh();}
     private void Refresh() {
+        BindLayoutProject();
         if(Project is null)return;
         Title=$"{(dirty?"* ":"")}{Project.SourceName} — Kinoko TAS";
-        DocumentLabel.Text=$"{Project.SourceName}  ·  {Project.Source.Count:N0} 帧 / {Project.Source.Count/60.0:F2} 秒  ·  {Project.EditCount:N0} 处编辑";
+        DocumentLabel.Text=$"{Project.SourceName}  ·  {Project.FrameCount:N0} 帧 / {Project.FrameCount/60.0:F2} 秒  ·  {Project.EditCount:N0} 处编辑";
         UndoButton.IsEnabled=Project.CanUndo;RedoButton.IsEnabled=Project.CanRedo;
-        int frame=Timeline.SelectedFrame;
-        FrameLabel.Text=Project.Source.Count==0?"空录制":frame.ToString("D6");
-        if(Project.Source.Count>0)FrameDetails.Text=$"时间 {frame/60.0:F3} 秒\n原始 RNG 前 {Project.Source.RandomBefore(frame):X8}\n原始 RNG 后 {Project.Source.RandomAfter(frame):X8}\n原始检查值\n{Project.Source.Checkpoint(frame):X16}";
+        int frame=Math.Clamp(Timeline.SelectedFrame,0,Math.Max(0,Project.FrameCount-1));
+        Timeline.SelectedFrame=frame;FrameLabel.Text=Project.FrameCount==0?"空录制":frame.ToString("D6");
+        if(Project.FrameCount>0){
+            int original=Project.SourceFrame(frame);
+            FrameDetails.Text=original<0?"新增空白帧 · 应用修改后生成校验值":$"时间 {frame/60.0:F3} 秒\n原始来源帧 {original}\n原始 RNG 前 {Project.Source.RandomBefore(original):X8}\n原始 RNG 后 {Project.Source.RandomAfter(original):X8}\n原始检查值\n{Project.Source.Checkpoint(original):X16}";
+        }
         ValidationLabel.Text=Project.InvalidFrom is int first ? $"输入从第 {first} 帧起有变化。点击“应用修改”或按 F5 重新模拟并验证，然后保存 .krec。" : "原始录制校验完整。连接游戏后可定位、逐帧或接管录制。";
         Timeline.InvalidateVisual();
     }

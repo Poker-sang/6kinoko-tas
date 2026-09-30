@@ -34,7 +34,7 @@ public partial class MainWindow {
             await game.PauseAsync(default);var recovery=CaptureRecovery();
             await game.TakeoverAsync();recoveries.Push(recovery);var boundary=game.ReadState()!.Completed;
             foreach(var mark in bookmarks.Where(m=>m.Frame>=boundary).ToArray())bookmarks.Remove(mark);
-            liveTimeline=new();timelineSource=null;FollowLatest.IsChecked=true;await game.ResumeAsync(1,default);
+            liveTimeline=new();timelineSource=null;FollowLatest.IsChecked=true;await game.ResumeAsync(selectedSpeed,default);
         }
         RecordToggle.IsChecked=game.IsLive;RefreshGameView();
     }
