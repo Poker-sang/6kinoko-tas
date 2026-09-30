@@ -21,13 +21,13 @@ internal static class FrameEditingChecks {
         string legacy=Path.Combine(output,"legacy-draft.ktas");
         using(var zip=ZipFile.Open(legacy,ZipArchiveMode.Create)){
             using(var raw=zip.CreateEntry("source.krec").Open())raw.Write(replay.Bytes.Span);
-            using var json=zip.CreateEntry("project.json").Open();JsonSerializer.Serialize(json,new ProjectManifest(1,"legacy.krec",[new(2,4,false)]));
+            using var json=zip.CreateEntry("project.json").Open();JsonSerializer.Serialize(json,new ProjectManifest(1,"legacy.krec",[new(2,4,false)]),RecordingJsonContext.Default.ProjectManifest);
         }
         Check(TasProject.Load(legacy).EditCount==1,"version-one input draft remains compatible");
         var invalid=Path.Combine(output,"invalid-layout.ktas");File.Copy(draft,invalid);
         using(var zip=ZipFile.Open(invalid,ZipArchiveMode.Update)){
             zip.GetEntry("project.json")!.Delete();using var json=zip.CreateEntry("project.json").Open();
-            JsonSerializer.Serialize(json,new ProjectManifest(2,"invalid.krec",[],[new(2,0),new(1,0)]));
+            JsonSerializer.Serialize(json,new ProjectManifest(2,"invalid.krec",[],[new(2,0),new(1,0)]),RecordingJsonContext.Default.ProjectManifest);
         }
         rejected=false;try{TasProject.Load(invalid);}catch(InvalidDataException){rejected=true;}Check(rejected,"non-monotonic source mappings rejected");
     }
