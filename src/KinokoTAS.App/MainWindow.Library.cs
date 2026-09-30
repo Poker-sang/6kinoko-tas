@@ -18,8 +18,10 @@ public partial class MainWindow {
             BookmarkList.SelectedItem=mark;BookmarkList.ContextMenu?.Close();
             var remove=new MenuItem{Header="删除重点"};
             remove.Click+=(_,_)=>RemoveBookmark(mark);
-            BookmarkList.ContextMenu=new ContextMenu{ItemsSource=new[]{remove}};
-            BookmarkList.ContextMenu.Open(BookmarkList);e.Handled=true;
+            var rename=new MenuItem{Header="重命名重点"};
+            rename.Click+=async (_,_)=>await Operate(()=>RenameBookmarkAsync(mark));
+            BookmarkList.ContextMenu=new ContextMenu{ItemsSource=new[]{rename,remove}};
+            e.Handled=true;
         }else if(buttons.IsLeftButtonPressed && e.ClickCount==2) {
             BookmarkList.SelectedItem=mark;FollowLatest.IsChecked=false;SelectFrame(mark.Frame);e.Handled=true;
         }
@@ -59,6 +61,13 @@ public partial class MainWindow {
         finally{seeking=null;}
     }
     void RemoveBookmark(FrameBookmark mark){if(busy||gameCommand)return;try{bookmarks.Remove(mark);PersistBookmarks();}catch(Exception ex){StatusLabel.Text=ex.Message;}}
+    public async Task RenameBookmarkAsync(FrameBookmark mark) {
+        if(!bookmarks.Contains(mark))return;
+        var name=await PromptNameAsync("重命名重点",mark.Name);
+        if(name is null || !bookmarks.Contains(mark))return;
+        var index=bookmarks.IndexOf(mark);var renamed=mark with {Name=name};
+        bookmarks[index]=renamed;PersistBookmarks();BookmarkList.SelectedItem=renamed;
+    }
     void RemoveBookmarkClick(object? s,RoutedEventArgs e){if(BookmarkList.SelectedItem is FrameBookmark mark)RemoveBookmark(mark);}
     async void SaveRecordingClick(object? s,RoutedEventArgs e)=>await Operate(SaveRecordingAsync);
     async Task SaveRecordingAsync() {
