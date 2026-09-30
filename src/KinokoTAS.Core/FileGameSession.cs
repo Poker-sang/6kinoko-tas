@@ -135,7 +135,9 @@ public sealed class FileGameSession : IGameSession {
         }catch(IOException){return null;}
     }
     static void Mailbox(string path,Action<Stream> write) {
-        for(int attempt=0;;attempt++)try{AtomicFile.Write(path,write);return;}catch(IOException)when(attempt<12){Thread.Sleep(2);}
+        for(int attempt=0;;attempt++)try{AtomicFile.Write(path,write);return;}
+        catch(IOException)when(attempt<12){Thread.Sleep(2);}
+        catch(UnauthorizedAccessException)when(attempt<12){Thread.Sleep(2);}
     }
     public void Input(uint mask) {
         if(process is null||process.HasExited)return;
