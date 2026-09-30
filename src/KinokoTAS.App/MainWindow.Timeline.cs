@@ -39,7 +39,10 @@ public partial class MainWindow {
         RecordToggle.IsChecked=game.IsLive;RefreshGameView();
         if(game.IsLive) {
             gameKeys.Clear();game.Input(0);
-            if(game.ExternalWindow)GameWindowOrder.Activate(game.GameWindowHandle);
+            if(game.ExternalWindow) {
+                GameWindowOrder.GrantActivation(game.GameProcessId);
+                if(!await game.FocusGameAsync())GameWindowOrder.Activate(game.GameWindowHandle);
+            }
             else GamePanel.Focus();
         }
     }

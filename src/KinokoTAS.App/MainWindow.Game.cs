@@ -101,6 +101,8 @@ public partial class MainWindow {
         try {await session.StartAsync();if(selectedSpeed!=1)await session.SetSpeedAsync(selectedSpeed);}
         catch {await session.DisposeAsync();EngineLabel.Text="启动失败";throw;}
         if(session.IsLive){
+            recordingSavePath=null;
+            lastSaved=null;OpenSavedButton.IsEnabled=false;SavedPathLabel.Text="保存位置：尚未保存";
             if(Project is not null)Project.Changed-=OnChanged;
             Project=null;Timeline.Project=null;sourcePath=null;dirty=false;
             bookmarks.Clear();bookmarkFile=Path.Combine(session.SessionDirectory,"bookmarks.json");

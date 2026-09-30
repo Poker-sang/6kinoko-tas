@@ -165,6 +165,12 @@ internal static class Program {
    var beforeCover=window.Project.Source.Bytes.ToArray();
    var cover=window.ToggleRecordingAsync();while(!cover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}cover.GetAwaiter().GetResult();
    Check(window.FindControl<Border>("GamePanel")!.IsFocused,"record takeover focuses embedded game preview");
+   var savePath=Path.Combine(output,"ui-current-save.krec");
+   var saveLive=window.SaveRecordingToAsync(savePath);while(!saveLive.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}saveLive.GetAwaiter().GetResult();
+   Check(window.RecordingSavePath==Path.GetFullPath(savePath),"save destination retained");
+   Check(RecordingPackage.Load(savePath).Replay.Count>0,"live save produces complete package");
+   var saveAgain=window.SaveRecordingAsync();while(!saveAgain.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}saveAgain.GetAwaiter().GetResult();
+   Check(window.RecordingSavePath==Path.GetFullPath(savePath),"subsequent save reuses destination without picker");
    var undoCover=window.RestoreOverwriteAsync();while(!undoCover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}undoCover.GetAwaiter().GetResult();
    Check(window.Project.Source.Bytes.Span.SequenceEqual(beforeCover),"record takeover undo restores whole source tail");
    // Shortcuts are routed through the preview, while text undo remains local.
@@ -216,7 +222,7 @@ internal static class Program {
   uint[]? plan=null;int first=-1;
   var planPath=Path.Combine(bridge,"edit.bin");
   if(File.Exists(planPath)){using var reader=new BinaryReader(File.OpenRead(planPath));string version=System.Text.Encoding.ASCII.GetString(reader.ReadBytes(8));int length=reader.ReadInt32();first=reader.ReadInt32();if(version=="KTASED02")reader.ReadInt32();plan=new uint[length];for(int i=0;i<length;i++)plan[i]=reader.ReadUInt32();total=length;}
-  if(!File.Exists(Path.Combine(Arg("--save-dir"),"no-edits.dat")))File.WriteAllText(Path.Combine(bridge,"capabilities.txt"),"KTAS1 edits-v1 edits-v2 pacing-v1"+(File.Exists(Path.Combine(Arg("--save-dir"),"legacy-pacing.dat"))?"":" seek-fast-v1"));
+  if(!File.Exists(Path.Combine(Arg("--save-dir"),"no-edits.dat")))File.WriteAllText(Path.Combine(bridge,"capabilities.txt"),"KTAS1 edits-v1 edits-v2 pacing-v1 snapshot-v1 focus-v1"+(File.Exists(Path.Combine(Arg("--save-dir"),"legacy-pacing.dat"))?"":" seek-fast-v1"));
   var recorded=new List<uint>();
   byte[] Current()=>Fixture((int)count,recorded.ToArray());
   for(int tick=0;tick<15000;tick++) {
@@ -224,6 +230,8 @@ internal static class Program {
     if(parts.Length==3 && long.Parse(parts[0])>seq){seq=long.Parse(parts[0]);switch(parts[1]){
      case "stop":File.WriteAllBytes(output,Current());return 0;
      case "pause":run=false;target=count;break;
+     case "snapshot":run=false;target=count;File.WriteAllBytes(Path.Combine(bridge,"recording.krec"),Current());break;
+     case "focus":File.WriteAllText(Path.Combine(bridge,"focus-observed.txt"),"yes");break;
      case "target":target=long.Parse(parts[2]);run=false;break;
      case "seek":target=long.Parse(parts[2]);run=false;File.WriteAllText(Path.Combine(bridge,"seek-observed.txt"),parts[2]);break;
      case "run":run=true;break;
@@ -270,7 +278,10 @@ internal static class Program {
    Check(File.ReadAllLines(history).TakeLast(2).SequenceEqual(new[]{"400","50"}) && legacy.ReadState()!.Completed==11,"older engine uses 4x fallback and restores speed");
   }
   await session.TakeoverAsync();Check(session.IsLive && session.ReadState()?.Phase=="live-paused","takeover acknowledgment");
+  int liveProcess=session.GameProcessId;
+  var captured=await session.CaptureRecordingAsync();Check(captured.Count==3 && session.IsRunning && session.IsLive && session.GameProcessId==liveProcess,"live snapshot leaves process and mode intact");
   await session.StepAsync(new bool[19],default);Check(session.ReadState()?.Completed==4,"single frame acknowledgment");
+  Check((await session.CaptureRecordingAsync()).Count==4 && session.GameProcessId==liveProcess,"recording continues after repeated save snapshot");
   string stateFile=Directory.GetFiles(session.SessionDirectory,"state.txt",SearchOption.AllDirectories).OrderBy(File.GetLastWriteTimeUtc).Last();
   File.WriteAllText(Path.Combine(Path.GetDirectoryName(stateFile)!,"command.txt"),"999 stop 0\n");
   var exitDeadline=DateTime.UtcNow.AddSeconds(10);while(session.IsRunning && DateTime.UtcNow<exitDeadline)await Task.Delay(10);

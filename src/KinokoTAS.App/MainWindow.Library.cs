@@ -5,6 +5,8 @@ namespace KinokoTAS.App;
 public partial class MainWindow {
     readonly ObservableCollection<FrameBookmark> bookmarks=[];
     string? bookmarkFile,lastSaved;
+    string? recordingSavePath;
+    public string? RecordingSavePath=>recordingSavePath;
     void InitializeLibrary(){BookmarkList.ItemsSource=bookmarks;Timeline.Bookmarks=bookmarks;bookmarks.CollectionChanged+=(_,_)=>Timeline.InvalidateVisual();FrameScroll.AddHandler(Avalonia.Input.InputElement.PointerPressedEvent,(_,_)=>{if(!followScroll)FollowLatest.IsChecked=false;},RoutingStrategies.Tunnel,true);UpdateGamePath();
         BookmarkList.AddHandler(InputElement.PointerPressedEvent,BookmarkPointerPressed,RoutingStrategies.Tunnel,true);
         BookmarkList.ContextRequested+=(_,e)=>{if(BookmarkList.ContextMenu is { } menu){menu.Open(BookmarkList);e.Handled=true;}};
@@ -69,23 +71,33 @@ public partial class MainWindow {
         bookmarks[index]=renamed;PersistBookmarks();BookmarkList.SelectedItem=renamed;
     }
     void RemoveBookmarkClick(object? s,RoutedEventArgs e){if(BookmarkList.SelectedItem is FrameBookmark mark)RemoveBookmark(mark);}
-    async void SaveRecordingClick(object? s,RoutedEventArgs e)=>await Operate(SaveRecordingAsync);
-    async Task SaveRecordingAsync() {
+    async void SaveRecordingClick(object? s,RoutedEventArgs e)=>await Operate(()=>SaveRecordingAsync());
+    async void SaveRecordingAsClick(object? s,RoutedEventArgs e)=>await Operate(()=>SaveRecordingAsync(true));
+    public async Task SaveRecordingAsync(bool saveAs=false) {
         if(Project?.InvalidFrom is not null)throw new InvalidOperationException("输入修改尚未执行。请先点击“应用修改”，或另存输入草稿项目。");
         if(game is not null)await game.PauseAsync(default);
         if(game is null && Project is null)throw new InvalidOperationException("先新建或打开录制。");
-        var selected=await StorageProvider.SaveFilePickerAsync(new(){Title="保存单文件录制（包含初始存档与书签）",SuggestedFileName="录制-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".krec",DefaultExtension="krec",FileTypeChoices=[new("完整录制"){Patterns=["*.krec"]}]});
-        if(selected?.TryGetLocalPath() is not string output)return;
+        string? output=saveAs?null:recordingSavePath;
+        if(output is null) {
+            var selected=await StorageProvider.SaveFilePickerAsync(new(){Title=saveAs?"另存为录制":"保存录制",SuggestedFileName=recordingSavePath is null?"录制-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".krec":Path.GetFileName(recordingSavePath),DefaultExtension="krec",FileTypeChoices=[new("完整录制"){Patterns=["*.krec"]}]});
+            output=selected?.TryGetLocalPath();if(output is null)return;
+        }
+        await SaveRecordingToAsync(output);
+    }
+    public async Task SaveRecordingToAsync(string output) {
+        if(Project?.InvalidFrom is not null)throw new InvalidOperationException("请先应用输入修改，或另存输入草稿项目。");
+        if(game is null && Project is null)throw new InvalidOperationException("先新建或打开录制。");
         if(!Path.GetExtension(output).Equals(".krec",StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("请使用 .krec 扩展名。");
-        if(string.Equals(Path.GetFullPath(output),sourcePath,OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal))throw new IOException("请选择新文件名，原录制保持不变。");
+        output=Path.GetFullPath(output);
+        if(game is not null && output.StartsWith(Path.GetFullPath(game.SessionDirectory)+Path.DirectorySeparatorChar,OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal))throw new IOException("请选择会话目录外的保存位置。");
         var initial=game is not null?Path.Combine(game.SessionDirectory,"initial"):await InitialDirectory(sourcePath);
         if(initial is null)return;
         Replay replay;
-        if(game is not null){var active=game;await EndGame(false);replay=Replay.Load(active.CurrentRecordingPath);}
+        if(game is not null)replay=await game.CaptureRecordingAsync();
         else replay=Project!.Source;
         RecordingPackage.Save(output,replay,initial,bookmarks.Where(m=>m.Frame<replay.Count));ShowSaved(output);
-        if(!dirty)await OpenPathAsync(output);
-        StatusLabel.Text="录制及初始存档、书签已保存。输入草稿需单独保存项目。";
+        recordingSavePath=Path.GetFullPath(output);
+        StatusLabel.Text="录制、初始存档及书签已保存。";
     }
     void OpenSavedClick(object? s,RoutedEventArgs e){try{if(lastSaved is not null)Process.Start(new ProcessStartInfo(Path.GetDirectoryName(lastSaved)!){UseShellExecute=true});}catch(Exception ex){StatusLabel.Text="打开目录失败："+ex.Message;}}
 }

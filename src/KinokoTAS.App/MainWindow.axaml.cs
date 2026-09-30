@@ -23,7 +23,7 @@ public partial class MainWindow : Window {
             if(e.Source is TextBox || e.Source is NumericUpDown)return;
             if(!e.KeyModifiers.HasFlag(KeyModifiers.Control))return;
             if(e.Key==Key.O){e.Handled=true;await OpenPicker();}
-            if(e.Key==Key.S){e.Handled=true;await Operate(SaveRecordingAsync);} 
+            if(e.Key==Key.S){e.Handled=true;await Operate(()=>SaveRecordingAsync(e.KeyModifiers.HasFlag(KeyModifiers.Shift)));} 
             if(e.Key==Key.Z){e.Handled=true;Project?.Undo();}
             if(e.Key==Key.Y){e.Handled=true;Project?.Redo();}
         };
@@ -48,6 +48,7 @@ public partial class MainWindow : Window {
             if(game is not null)await EndGame(false);
             if(Project is not null)Project.Changed-=OnChanged;
             bookmarkLayouts.Clear();recoveries.Clear();Project=loaded;sourcePath=Path.GetFullPath(path);dirty=false;Project.Changed+=OnChanged;
+            recordingSavePath=Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)?Path.GetFullPath(path):null;
             LoadBookmarksFor(Project.Source,sourcePath,Project.FrameCount);
             Timeline.LiveMasks=null;Timeline.Project=Project;Timeline.FirstFrame=0;Timeline.SelectedFrame=0;FrameScroll.Value=0;
             FrameScroll.Maximum=Math.Max(0,Project.FrameCount-1);FrameScroll.ViewportSize=20;

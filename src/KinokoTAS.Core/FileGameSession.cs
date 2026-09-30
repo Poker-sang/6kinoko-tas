@@ -199,6 +199,20 @@ public sealed class FileGameSession : IGameSession {
     }
     public async Task ReplayAllAsync(CancellationToken ct=default){await SeekAsync(0,ct);if(ReadState()!.Total>1)await ResumeAsync(PlaybackSpeed,ct);}
     public async Task TakeoverAsync(CancellationToken ct=default) {if(IsLive)return;await PauseAsync(ct);Input(0);await SendAsync("takeover",0,s=>s.Phase=="live-paused",ct);IsLive=true;}
+    public async Task<Replay> CaptureRecordingAsync(CancellationToken ct=default) {
+        if(!IsRunning)return Replay.Load(CurrentRecordingPath);
+        await PauseAsync(ct);
+        if(!IsLive)return Replay.Load(source??throw new InvalidOperationException("尚无录制来源。"));
+        if(!Supports("snapshot-v1"))throw new NotSupportedException("此游戏版本不支持保持进程保存，请更换新版游戏程序。");
+        var acknowledged=await SendAsync("snapshot",0,state=>state.Phase=="live-paused",ct);
+        var saved=Replay.Load(Path.Combine(bridge,"recording.krec"));
+        if(saved.Identity!=identity || saved.Count!=acknowledged.Completed)throw new InvalidDataException("保存副本与引擎帧边界不一致。");
+        return saved;
+    }
+    public async Task<bool> FocusGameAsync(CancellationToken ct=default) {
+        if(!ExternalWindow || !Supports("focus-v1"))return false;
+        await SendAsync("focus",0,state=>true,ct);return true;
+    }
     public async Task<string> StopAsync() {
         if(process is null)return BranchPath;
         try {
