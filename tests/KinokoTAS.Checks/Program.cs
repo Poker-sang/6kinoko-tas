@@ -174,7 +174,6 @@ internal static class Program {
    var saveAgain=window.SaveRecordingAsync();while(!saveAgain.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}saveAgain.GetAwaiter().GetResult();
    Check(window.RecordingSavePath==Path.GetFullPath(savePath),"subsequent save reuses destination without picker");
    Check(!window.HasUnsavedChanges,"successful save marks current live prefix clean");
-   var changedFrame=editingSession; // The adopted engine is tested through bookmark changes below.
    window.AddBookmarkAt(0,"未保存重点");
    Check(window.HasUnsavedChanges,"bookmark changes require saving");
    var newCancelled=window.NewRecordingAsync();
@@ -229,8 +228,29 @@ internal static class Program {
    var all=window.ReplayAllAsync();while(!all.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}all.GetAwaiter().GetResult();
    Check(!externalSession.IsLive,"replay all seals recording and starts playback without manual reopen");
    var externalStop=window.StopGameSessionAsync();while(!externalStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalStop.GetAwaiter().GetResult();
+   var closingWindow=new MainWindow();closingWindow.Show();
+   var closeOpen=closingWindow.OpenPathAsync(savePath);while(!closeOpen.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}closeOpen.GetAwaiter().GetResult();
+   Check(!closingWindow.HasUnsavedChanges,"opening saved package starts clean");
+   closingWindow.AddBookmarkAt(0,"退出前保存");closingWindow.Close();
+   ClickSaveChoice(closingWindow,"PART_PrimaryButton");
+   var closeDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(closingWindow.IsVisible && DateTime.UtcNow<closeDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(!closingWindow.IsVisible && RecordingPackage.Load(savePath).Bookmarks.Any(m=>m.Name=="退出前保存"),"save on exit writes bookmarks before closing");
+   var discardWindow=new MainWindow();discardWindow.Show();
+   var discardOpen=discardWindow.OpenPathAsync(savePath);while(!discardOpen.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}discardOpen.GetAwaiter().GetResult();
+   var packageBeforeDiscard=File.ReadAllBytes(savePath);
+   discardWindow.AddBookmarkAt(0,"放弃退出");discardWindow.Close();ClickSaveChoice(discardWindow,"PART_SecondaryButton");
+   closeDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(discardWindow.IsVisible && DateTime.UtcNow<closeDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(!discardWindow.IsVisible && File.ReadAllBytes(savePath).SequenceEqual(packageBeforeDiscard),"discard on exit leaves saved package untouched");
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
   }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
+ }
+
+ static void ClickSaveChoice(MainWindow window,string name) {
+  var deadline=DateTime.UtcNow.AddSeconds(5);
+  while(!window.GetVisualDescendants().OfType<Button>().Any(b=>b.Name==name) && DateTime.UtcNow<deadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+  window.GetVisualDescendants().OfType<Button>().Single(b=>b.Name==name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
  }
 
  static int FakeEngine(string[] args) {
