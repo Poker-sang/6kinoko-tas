@@ -82,7 +82,9 @@ public sealed class TimelineControl : Control {
             frame=Math.Clamp(frame,0,FrameCount-1);
             PaintRange?.Invoke(Math.Min(paintFrame,frame),Math.Max(paintFrame,frame),paintAction);paintFrame=frame;e.Handled=true;
         }
-        ToolTip.SetTip(this,point.X>=FrameWidth?string.Join(" · ",Bookmarks.Where(mark=>mark.Frame==frame).Select(mark=>mark.Name)):null);
+        var tip=point.X>=FrameWidth?string.Join(" · ",Bookmarks.Where(mark=>mark.Frame==frame).Select(mark=>mark.Name)):null;
+        if(string.IsNullOrWhiteSpace(tip)){ToolTip.SetIsOpen(this,false);ToolTip.SetTip(this,null);}
+        else ToolTip.SetTip(this,tip);
     }
     protected override void OnPointerReleased(PointerReleasedEventArgs e){base.OnPointerReleased(e);FinishPainting();}
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e){base.OnPointerCaptureLost(e);FinishPainting();}

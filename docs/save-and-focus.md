@@ -41,6 +41,9 @@ The game executable remains the live-save-01 version above.
 Latest editor/game delivery and three-choice unsaved confirmation:
 [unsaved-recording-confirmation.md](unsaved-recording-confirmation.md).
 
+The subsequent live pause/resume pointer handling fix is delivered in
+[playback-buttons-fix.md](playback-buttons-fix.md).
+
 Editor Release build and full synthetic checks passed in `artifacts/build-63`
 and `artifacts/checks-63`. Checks cover repeated saves without a picker, complete
 live packages, unchanged process/mode, and continued recording after export.
