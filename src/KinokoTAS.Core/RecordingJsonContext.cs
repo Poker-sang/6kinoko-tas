@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 namespace KinokoTAS.Core;
 
-internal sealed record RecordingManifest(int Version,Dictionary<string,string> Sha256,FrameBookmark[] Bookmarks);
+public sealed record RecordingManifest(int Version,Dictionary<string,string> Sha256,FrameBookmark[] Bookmarks);
 
 [JsonSourceGenerationOptions(WriteIndented=true)]
 [JsonSerializable(typeof(SessionMetadata))]
