@@ -198,7 +198,16 @@ public partial class MainWindow {
     
     public async Task NewRecordingAsync(){if(await ConfirmSaveChangesAsync())await LaunchGame(true);}
     async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(NewRecordingAsync);
-    async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{RequireAppliedLayout();if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(selectedSpeed,default);GamePanel.Focus();});
+    async Task FocusGameWindowAsync() {
+        if(game is null)return;
+        if(!game.ExternalWindow){GamePanel.Focus();return;}
+        GameWindowOrder.GrantActivation(game.GameProcessId);
+        await game.FocusGameAsync();
+        // A bridge acknowledgement confirms the request, not Windows foreground ownership.
+        if(OperatingSystem.IsWindows() && !GameWindowOrder.Activate(game.GameWindowHandle))
+            GameStatus.Text="Windows 未允许切换焦点，请点击游戏窗口。";
+    }
+    async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{RequireAppliedLayout();if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(selectedSpeed,default);await FocusGameWindowAsync();});
     async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}finally{RefreshGameView();}}
     async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{RequireAppliedLayout();if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});
     async void TakeoverClick(object? s,RoutedEventArgs e)=>await Operate(ToggleRecordingAsync);

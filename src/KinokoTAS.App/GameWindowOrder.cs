@@ -6,7 +6,31 @@ internal static class GameWindowOrder {
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(nint window);
     [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(uint process);
     public static void GrantActivation(int process){if(OperatingSystem.IsWindows() && process>0)AllowSetForegroundWindow((uint)process);}
-    public static bool Activate(nint window)=>OperatingSystem.IsWindows() && window!=0 && SetForegroundWindow(window);
+    [DllImport("user32.dll")] static extern nint GetForegroundWindow();
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(nint window,out uint process);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] static extern bool AttachThreadInput(uint from,uint to,bool attach);
+    [DllImport("user32.dll")] static extern bool IsIconic(nint window);
+    [DllImport("user32.dll")] static extern bool ShowWindow(nint window,int command);
+    [DllImport("user32.dll")] static extern nint SetFocus(nint window);
+    public static bool Activate(nint window) {
+        if(!OperatingSystem.IsWindows() || window==0)return false;
+        if(IsIconic(window))ShowWindow(window,9);
+        if(SetForegroundWindow(window) && GetForegroundWindow()==window)return true;
+        uint current=GetCurrentThreadId();
+        uint foreground=GetWindowThreadProcessId(GetForegroundWindow(),out _);
+        uint target=GetWindowThreadProcessId(window,out _);
+        bool joinedForeground=false,joinedTarget=false;
+        try {
+            if(foreground!=0 && foreground!=current)joinedForeground=AttachThreadInput(current,foreground,true);
+            if(target!=0 && target!=current && target!=foreground)joinedTarget=AttachThreadInput(current,target,true);
+            SetForegroundWindow(window);SetFocus(window);
+            return GetForegroundWindow()==window;
+        }finally {
+            if(joinedTarget)AttachThreadInput(current,target,false);
+            if(joinedForeground)AttachThreadInput(current,foreground,false);
+        }
+    }
     [DllImport("user32.dll",EntryPoint="SetWindowLongPtrW",SetLastError=true)] static extern nint SetOwner64(nint window,int index,nint owner);
     [DllImport("user32.dll",EntryPoint="SetWindowLongW",SetLastError=true)] static extern int SetOwner32(nint window,int index,int owner);
     public static bool Attach(nint game,nint editor) {

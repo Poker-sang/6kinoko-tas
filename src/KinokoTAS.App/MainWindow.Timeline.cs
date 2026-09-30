@@ -39,11 +39,7 @@ public partial class MainWindow {
         RecordToggle.IsChecked=game.IsLive;RefreshGameView();
         if(game.IsLive) {
             gameKeys.Clear();game.Input(0);
-            if(game.ExternalWindow) {
-                GameWindowOrder.GrantActivation(game.GameProcessId);
-                if(!await game.FocusGameAsync())GameWindowOrder.Activate(game.GameWindowHandle);
-            }
-            else GamePanel.Focus();
+            await FocusGameWindowAsync();
         }
     }
     public async Task ReplayAllAsync(){RequireAppliedLayout();if(game is null)throw new InvalidOperationException("先新建或打开录制。");await game.ReplayAllAsync();UpdatePlaybackProject();FollowLatest.IsChecked=true;RefreshGameView();}
