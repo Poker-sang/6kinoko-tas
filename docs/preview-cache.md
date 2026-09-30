@@ -1,5 +1,8 @@
 # Frame preview cache
 
+Historical delivery only. Superseded by unlimited seeking; the 64 MiB image
+cache has been removed. See `fast-seeking.md` for the current implementation.
+
 Embedded preview keeps observed images in a session-local 64 MiB LRU cache.
 Seeking a cached frame displays its image while the engine simulates to the
 requested position. Status distinguishes cached images from engine progress.

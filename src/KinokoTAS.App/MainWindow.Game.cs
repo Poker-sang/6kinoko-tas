@@ -9,7 +9,6 @@ public partial class MainWindow {
     bool gameCommand;
     CancellationTokenSource? seeking;
     long previewCount=-1;
-    PreviewFrame? seekPreview;
     nint orderedGameWindow;
     int orderedProcess;
     string? gameExe;
@@ -134,8 +133,7 @@ public partial class MainWindow {
             }
             game.Input(CurrentMask());var state=game.ReadState();if(state is null)return;
             RefreshTimeline(state);RecordToggle.IsChecked=game.IsLive;
-            var latest=game.ExternalWindow?null:game.ReadPreview();
-            var frame=seekPreview??latest;
+            var frame=game.ExternalWindow?null:game.ReadPreview();
             if(frame is not null && frame.Completed!=previewCount) {
                 if(bitmap is null||bitmap.PixelSize.Width!=frame.Width||bitmap.PixelSize.Height!=frame.Height){bitmap?.Dispose();bitmap=new(new(frame.Width,frame.Height),new(96,96),PixelFormat.Rgba8888,AlphaFormat.Opaque);GameImage.Source=bitmap;}
                 using(var buffer=bitmap.Lock())for(int row=0;row<frame.Height;row++)Marshal.Copy(frame.Pixels,row*frame.Width*4,buffer.Address+row*buffer.RowBytes,frame.Width*4);
@@ -144,7 +142,7 @@ public partial class MainWindow {
             var phase=state.Phase switch {"paused" or "live-paused"=>"已暂停","live"=>"正在录制","playing"=>"正在回放","finished"=>"已结束","failed"=>"运行失败",_=>"正在启动"};
             EngineLabel.Text=$"{phase} · 已完成 {state.Completed} 帧";
             FrameLabel.Text=Math.Max(0,state.Completed-1).ToString("D6");FrameDetails.Text=$"时间 {Math.Max(0,state.Completed-1)/60.0:F2} 秒";
-            if(seeking is not null){GameStatus.Text=operationProgress??$"{(seekPreview is null?"":"已显示缓存画面 · ")}正在定位：{state.Completed:N0} / {seekTarget:N0} 帧（Esc 取消）";return;}
+            if(seeking is not null){GameStatus.Text=operationProgress??$"正在定位：{state.Completed:N0} / {seekTarget:N0} 帧（Esc 取消）";return;}
             if(operationError is not null){GameStatus.Text=operationError;return;}
             if(game.ExternalWindow){GameStatus.Text=$"{phase} · 在独立游戏窗口操作，F9 播放/暂停，F10 前进一帧。切换窗口不会自动暂停。";return;}
             GameStatus.Text=$"画面帧 {previewCount-1} / 逻辑帧 {state.Completed-1} · "+(game.IsLive?"接管输入：方向键、Z 跳跃/确认、X 攻击/加速/搬运、A 暂停、C 道具、F10 执行一帧。点击画面获取焦点。":"双击时间轴帧号或使用定位按钮查看。回退会从头重播，请等待。");
@@ -153,7 +151,7 @@ public partial class MainWindow {
     async Task SeekGame(int frame) {if(game is not null)await Operate(async()=>{
         if(Project?.HasLayoutChanges==true)throw new InvalidOperationException("帧布局已修改，请先应用修改，再定位游戏画面。");
         using var token=new CancellationTokenSource();seeking=token;seekTarget=frame+1;
-        try{seekPreview=game.ExternalWindow?null:game.CachedPreview(frame+1);GameStatus.Text="正在重播定位…";RefreshGameView();await game.SeekAsync(frame,token.Token);UpdatePlaybackProject();}finally{seekPreview=null;seeking=null;RefreshGameView();}
+        try{GameStatus.Text="正在重播定位…";await game.SeekAsync(frame,token.Token);UpdatePlaybackProject();}finally{seeking=null;RefreshGameView();}
     });}
     public Task StopGameSessionAsync()=>EndGame(false);
     async Task EndGame(bool load) {

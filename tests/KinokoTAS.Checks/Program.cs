@@ -28,12 +28,6 @@ internal static class Program {
    string output=Path.GetFullPath(args.Length>0?args[0]:"artifacts/checks-"+DateTime.Now.ToString("yyyyMMdd-HHmmss"));
    if(Directory.Exists(output))throw new Exception("Use a fresh output directory");Directory.CreateDirectory(output);
    byte[] data=Fixture();string replayPath=Path.Combine(output,"synthetic.krec");File.WriteAllBytes(replayPath,data);
-   var cache=new PreviewCache(8);byte[] pixels=[1,2,3,4];cache.Add(new(1,1,1,pixels));pixels[0]=9;
-   Check(cache.Get(1)!.Pixels[0]==1,"preview cache owns pixels");
-   cache.Add(new(2,1,1,[2,2,2,2]));_=cache.Get(1);cache.Add(new(3,1,1,[3,3,3,3]));
-   Check(cache.Get(2) is null && cache.Get(1) is not null && cache.Bytes==8,"preview cache bounded LRU eviction");
-   cache.Add(new(4,3,1,new byte[12]));Check(cache.Bytes==8 && cache.Get(4) is null,"oversized preview skipped");
-   cache.Clear();Check(cache.Bytes==0 && cache.Get(1) is null,"takeover clears stale previews");
    var replay=Replay.Parse(data);FrameEditingChecks.Run(replay,output);Check(replay.Count==180 && replay.Held(59,4)==60 && replay.Released(60,4),"wire values and releases");
    Check(replay.Clock(60)==2000 && replay.RandomBefore(60)==42 && replay.Checkpoint(60)==1020,"wire diagnostic offsets");
    var corrupt=(byte[])data.Clone();corrupt[100]^=1;Reject(corrupt,"corrupt frame rejected");Reject(data[..^1],"truncation rejected");Reject([..data,0],"trailing bytes rejected");
@@ -191,7 +185,7 @@ internal static class Program {
   uint[]? plan=null;int first=-1;
   var planPath=Path.Combine(bridge,"edit.bin");
   if(File.Exists(planPath)){using var reader=new BinaryReader(File.OpenRead(planPath));string version=System.Text.Encoding.ASCII.GetString(reader.ReadBytes(8));int length=reader.ReadInt32();first=reader.ReadInt32();if(version=="KTASED02")reader.ReadInt32();plan=new uint[length];for(int i=0;i<length;i++)plan[i]=reader.ReadUInt32();total=length;}
-  if(!File.Exists(Path.Combine(Arg("--save-dir"),"no-edits.dat")))File.WriteAllText(Path.Combine(bridge,"capabilities.txt"),"KTAS1 edits-v1 edits-v2 pacing-v1");
+  if(!File.Exists(Path.Combine(Arg("--save-dir"),"no-edits.dat")))File.WriteAllText(Path.Combine(bridge,"capabilities.txt"),"KTAS1 edits-v1 edits-v2 pacing-v1"+(File.Exists(Path.Combine(Arg("--save-dir"),"legacy-pacing.dat"))?"":" seek-fast-v1"));
   var recorded=new List<uint>();
   byte[] Current()=>Fixture((int)count,recorded.ToArray());
   for(int tick=0;tick<15000;tick++) {
@@ -200,8 +194,9 @@ internal static class Program {
      case "stop":File.WriteAllBytes(output,Current());return 0;
      case "pause":run=false;target=count;break;
      case "target":target=long.Parse(parts[2]);run=false;break;
+     case "seek":target=long.Parse(parts[2]);run=false;File.WriteAllText(Path.Combine(bridge,"seek-observed.txt"),parts[2]);break;
      case "run":run=true;break;
-     case "speed":File.WriteAllText(Path.Combine(bridge,"speed-observed.txt"),parts[2]);break;
+     case "speed":File.WriteAllText(Path.Combine(bridge,"speed-observed.txt"),parts[2]);File.AppendAllText(Path.Combine(bridge,"speed-history.txt"),parts[2]+"\n");break;
      case "takeover":live=true;run=false;target=count;break;
     }}
    }catch(IOException){}
@@ -234,7 +229,15 @@ internal static class Program {
   await session.SeekAsync(10);Check(session.ReadState()?.Completed==11,"forward seek acknowledged");
   string speedFile=Directory.GetFiles(session.SessionDirectory,"speed-observed.txt",SearchOption.AllDirectories).OrderBy(File.GetLastWriteTimeUtc).Last();
   Check(File.ReadAllText(speedFile)=="50","accelerated seek restores chosen playback speed");
+  Check(File.ReadAllText(Path.Combine(Path.GetDirectoryName(speedFile)!,"seek-observed.txt"))=="11","capable engine receives unlimited seek command");
+  Check(!File.ReadAllLines(Path.Combine(Path.GetDirectoryName(speedFile)!,"speed-history.txt")).Contains("400"),"unlimited seek never changes selected playback speed");
   await session.SeekAsync(2);Check(session.ReadState()?.Completed==3,"backward seek restarts and restores");
+  string legacyInitial=Path.Combine(output,"legacy-initial");Directory.CreateDirectory(legacyInitial);File.WriteAllText(Path.Combine(legacyInitial,"legacy-pacing.dat"),"fixture");
+  await using(var legacy=new FileGameSession(exe,Path.Combine(output,"legacy-session"),replay,legacyInitial,new string('a',64))) {
+   await legacy.StartAsync();await legacy.SetSpeedAsync(0.5);await legacy.SeekAsync(10);
+   string history=Directory.GetFiles(legacy.SessionDirectory,"speed-history.txt",SearchOption.AllDirectories).Single();
+   Check(File.ReadAllLines(history).TakeLast(2).SequenceEqual(new[]{"400","50"}) && legacy.ReadState()!.Completed==11,"older engine uses 4x fallback and restores speed");
+  }
   await session.TakeoverAsync();Check(session.IsLive && session.ReadState()?.Phase=="live-paused","takeover acknowledgment");
   await session.StepAsync(new bool[19],default);Check(session.ReadState()?.Completed==4,"single frame acknowledgment");
   string stateFile=Directory.GetFiles(session.SessionDirectory,"state.txt",SearchOption.AllDirectories).OrderBy(File.GetLastWriteTimeUtc).Last();
