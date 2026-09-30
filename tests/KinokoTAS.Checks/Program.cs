@@ -158,11 +158,26 @@ internal static class Program {
    while(editingSession.PlaybackSpeed!=4&&DateTime.UtcNow<speedDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
    Check(editingSession.PlaybackSpeed==4,"speed picker controls connected engine");
    window.Project.SetRange(0,0,4,false);
-   var apply=window.ApplyEditsAsync();while(!apply.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}apply.GetAwaiter().GetResult();
+   timeline.SelectedFrame=7;window.RefreshGameView();
+   Check(window.FindControl<Control>("ApplyEditsButton")!.IsEnabled,"apply command enabled for pending inputs");
+   var pendingApply=window.Project;
+   window.FindControl<Control>("ApplyEditsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+   var applyDeadline=DateTime.UtcNow.AddSeconds(20);
+   while(ReferenceEquals(window.Project,pendingApply) && DateTime.UtcNow<applyDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
    Check(window.Project.EditCount==0 && window.Project.Source.Held(0,4)==0,"UI adopts verified edited recording");
+   Check(window.Project.InvalidFrom is null && !window.Project.IsEdited(0,4),"successful apply clears yellow pending cell marker");
+   Check(timeline.Playhead==7 && timeline.SelectedFrame==7,"apply returns verified game to selected frame");
+   Check(window.HasUnsavedChanges,"applied recording still requires saving to disk");
    var restore=window.RestoreOverwriteAsync();while(!restore.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}restore.GetAwaiter().GetResult();
    Check(window.Project.Source.Held(0,4)==1 && window.Project.EditCount==1,"restore recovers original and retained draft");
    window.Project.Undo();
+   window.Project.SetRange(1,1,4,false);timeline.SelectedFrame=1;window.RefreshGameView();
+   Check(window.FindControl<Control>("RestartGameButton")!.IsEnabled,"restart enabled for pending edits while game runs");
+   var pendingRestart=window.Project;
+   window.FindControl<Control>("RestartGameButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+   applyDeadline=DateTime.UtcNow.AddSeconds(20);
+   while(ReferenceEquals(window.Project,pendingRestart) && DateTime.UtcNow<applyDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(window.Project.Source.Held(1,4)==0 && window.Project.InvalidFrom is null && !window.Project.IsEdited(1,4),"restart applies pending inputs and clears their yellow markers");
    var beforeCover=window.Project.Source.Bytes.ToArray();
    var cover=window.ToggleRecordingAsync();while(!cover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}cover.GetAwaiter().GetResult();
    Check(window.FindControl<Border>("GamePanel")!.IsFocused,"record takeover focuses embedded game preview");

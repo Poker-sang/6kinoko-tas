@@ -127,7 +127,8 @@ public partial class MainWindow {
         CancelOperationButton.IsEnabled=seeking is not null;
         ApplyEditsButton.IsEnabled=!gameCommand && !busy && Project?.InvalidFrom is not null && game?.IsLive!=true;
         RestoreOverwriteButton.IsEnabled=!gameCommand && !busy && game is not null && recoveries.Count>0;
-        RestartGameButton.IsEnabled=game is not null?!game.IsRunning:Project is not null;
+        RestartGameButton.IsEnabled=!gameCommand && !busy && (Project?.InvalidFrom is not null || (game is not null?!game.IsRunning:Project is not null));
+        RestartGameButton.Label=Project?.InvalidFrom is not null?"应用并重新运行":"重新启动游戏";
         if(game is null){UpdatePlaybackButtons(null);return;}
         if(!game.IsRunning){playbackState=null;UpdatePlaybackButtons(null);EngineLabel.Text="游戏已关闭";GameStatus.Text=operationError??"点击“重新启动游戏”恢复当前录制。";return;}
         try {

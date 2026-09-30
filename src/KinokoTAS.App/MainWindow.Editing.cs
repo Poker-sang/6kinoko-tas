@@ -23,17 +23,22 @@ public partial class MainWindow {
         if(Project?.InvalidFrom is null)throw new InvalidOperationException("请先修改时间轴上的输入。");
         if(game is null){await LaunchGame(false);if(game is null)return;}
         if(game.IsLive)throw new InvalidOperationException("先关闭“录制”开关，再编辑已录制的输入。");
-        var old=game;await old.PauseAsync(default);
+        var selectedFrame=Math.Clamp(Timeline.SelectedFrame,0,Project.FrameCount-1);
+        var draft=Project;
+        var old=game;if(old.IsRunning)await old.PauseAsync(default);
         var recovery=CaptureRecovery();
         using var cancel=new CancellationTokenSource();seeking=cancel;busy=true;
         try {
-            var next=await old.ResimulateAsync(Project,new CallbackProgress(p=>{
+            var next=await old.ResimulateAsync(draft,new CallbackProgress(p=>{
                 operationProgress=$"{p.Stage}：{p.Completed:N0} / {p.Total:N0} 帧（{100.0*p.Completed/Math.Max(1,p.Total):F0}%）";
                 GameStatus.Text=operationProgress;
             }),cancel.Token);
+            try{await next.SeekAsync(selectedFrame,cancel.Token);}
+            catch{await next.DisposeAsync();throw;}
             // Only adopt the result after a second complete, checkpoint-verified playback.
             await old.DisposeAsync();recoveries.Push(recovery);AdoptSession(next);PersistBookmarks();
-            dirty=false;StatusLabel.Text="修改已执行并通过完整回放验证，可以保存 .krec；“恢复上次覆盖”可返回旧版本。";
+            SelectFrame(selectedFrame);
+            dirty=false;StatusLabel.Text="修改已应用并验证，已返回所选帧；黄色待应用标记已清除，录制尚需保存。";
         } finally {busy=false;seeking=null;operationProgress=null;RefreshGameView();}
     }
     public async Task RestoreOverwriteAsync() {
