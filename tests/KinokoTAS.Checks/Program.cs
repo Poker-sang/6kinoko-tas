@@ -238,6 +238,10 @@ internal static class Program {
    Check(externalSession.ReadState()?.Phase=="live","play click survives refresh and resumes live recording");
    var liveMark=window.AddBookmarkAsync("重新挑战");while(!liveMark.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}liveMark.GetAwaiter().GetResult();
    window.RefreshGameView();
+   // Resume now also awaits the focus bridge; live phase alone does not mean
+   // the asynchronous click handler has released its command guard.
+   playbackDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(!window.FindControl<Control>("PlayGameButton")!.IsEnabled && DateTime.UtcNow<playbackDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);window.RefreshGameView();}
    Check(window.FindControl<Control>("PlayGameButton")!.IsEnabled,"bookmark pause enables live resume");
    ClickPlaybackThroughRefresh(window,"PlayGameButton");
    playbackDeadline=DateTime.UtcNow.AddSeconds(5);
