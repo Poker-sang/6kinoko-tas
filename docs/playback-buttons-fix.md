@@ -28,3 +28,6 @@ bookmark text as no tooltip and closing any previously visible popup. Named
 bookmark hints remain. Build/publish and complete checks for this final version
 are retained in `artifacts/build-69` and `artifacts/checks-69`; build-68,
 checks-68 and the intermediate windows-editor-28 package are retained.
+
+Subsequent application/restart behavior and delivery are documented in
+[apply-edits-restart.md](apply-edits-restart.md).
