@@ -259,7 +259,13 @@ internal static class Program {
    Check(!externalSession.IsLive,"replay all seals recording and starts playback without manual reopen");
    var externalStop=window.StopGameSessionAsync();while(!externalStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}externalStop.GetAwaiter().GetResult();
    var closingWindow=new MainWindow();closingWindow.Show();
+   var savedPackage=RecordingPackage.Load(savePath);
+   var staleCache=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"KinokoTAS","bookmarks",Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(savedPackage.Replay.Bytes.Span))+".json");
+   var previousCache=File.Exists(staleCache)?File.ReadAllBytes(staleCache):null;
+   Directory.CreateDirectory(Path.GetDirectoryName(staleCache)!);File.WriteAllText(staleCache,"[]");
    var closeOpen=closingWindow.OpenPathAsync(savePath);while(!closeOpen.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}closeOpen.GetAwaiter().GetResult();
+   Check(closingWindow.FindControl<ListBox>("BookmarkList")!.Items.Cast<FrameBookmark>().SequenceEqual(savedPackage.Bookmarks),"packaged bookmarks override stale empty local cache");
+   if(previousCache is not null)File.WriteAllBytes(staleCache,previousCache);
    Check(!closingWindow.HasUnsavedChanges,"opening saved package starts clean");
    closingWindow.AddBookmarkAt(0,"退出前保存");closingWindow.Close();
    ClickSaveChoice(closingWindow,"PART_PrimaryButton");

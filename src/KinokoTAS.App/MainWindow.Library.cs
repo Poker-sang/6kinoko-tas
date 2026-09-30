@@ -34,7 +34,8 @@ public partial class MainWindow {
     void LoadBookmarksFor(Replay replay,string path,int? frameCount=null) {
         bookmarkFile=BookmarkCache(replay);bookmarks.Clear();
         var stored=path.EndsWith(".ktas",StringComparison.OrdinalIgnoreCase)&&File.Exists(path+".bookmarks.json")?path+".bookmarks.json":File.Exists(bookmarkFile)?bookmarkFile:path+".bookmarks.json";
-        var marks=File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,frameCount??replay.Count):Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)&&RecordingPackage.IsPackage(path)?RecordingPackage.Load(path).Bookmarks:[];
+        var packed=Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)&&RecordingPackage.IsPackage(path);
+        var marks=packed?RecordingPackage.Load(path).Bookmarks:File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,frameCount??replay.Count):[];
         foreach(var mark in marks)bookmarks.Add(mark);
     }
     void PersistBookmarks(){documentUnsaved=true;if(bookmarkFile is not null && Project?.HasLayoutChanges!=true)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);}
