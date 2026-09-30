@@ -272,6 +272,10 @@ internal static class Program {
    var closeDeadline=DateTime.UtcNow.AddSeconds(5);
    while(closingWindow.IsVisible && DateTime.UtcNow<closeDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
    Check(!closingWindow.IsVisible && RecordingPackage.Load(savePath).Bookmarks.Any(m=>m.Name=="退出前保存"),"save on exit writes bookmarks before closing");
+   var cleanWindow=new MainWindow();cleanWindow.Show();
+   var cleanOpen=cleanWindow.OpenPathAsync(savePath);while(!cleanOpen.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}cleanOpen.GetAwaiter().GetResult();
+   cleanWindow.Close();Dispatcher.UIThread.RunJobs();
+   Check(!cleanWindow.IsVisible,"clean close is deferred past original cancelled closing event");
    var discardWindow=new MainWindow();discardWindow.Show();
    var discardOpen=discardWindow.OpenPathAsync(savePath);while(!discardOpen.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}discardOpen.GetAwaiter().GetResult();
    var packageBeforeDiscard=File.ReadAllBytes(savePath);

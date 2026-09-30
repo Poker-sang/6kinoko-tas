@@ -76,7 +76,7 @@ public partial class MainWindow {
     async void SaveRecordingAsClick(object? s,RoutedEventArgs e)=>await Operate(()=>SaveRecordingAsync(true));
     public async Task SaveRecordingAsync(bool saveAs=false) {
         if(Project?.InvalidFrom is not null)throw new InvalidOperationException("输入修改尚未执行。请先点击“应用修改”，或另存输入草稿项目。");
-        if(game is not null)await game.PauseAsync(default);
+        if(game?.IsRunning==true)await game.PauseAsync(default);
         if(game is null && Project is null)throw new InvalidOperationException("先新建或打开录制。");
         string? output=saveAs?null:recordingSavePath;
         if(output is null) {

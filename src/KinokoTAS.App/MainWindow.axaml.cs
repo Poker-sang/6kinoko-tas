@@ -16,7 +16,7 @@ public partial class MainWindow : Window {
             if(gameCommand||busy){e.Cancel=true;seeking?.Cancel();StatusLabel.Text="正在结束当前操作，请稍后再次关闭。";return;}
             e.Cancel=true;
             closePending=true;
-            try{Timeline.FinishPainting();if(!await ConfirmSaveChangesAsync())return;await EndGame(false);allowClose=true;Close();}
+            try{Timeline.FinishPainting();if(!await ConfirmSaveChangesAsync())return;await EndGame(false);allowClose=true;Avalonia.Threading.Dispatcher.UIThread.Post(Close);}
             catch(Exception ex){StatusLabel.Text="退出失败："+ex.Message+"；会话文件已保留。";}
             finally{closePending=false;}
         };
