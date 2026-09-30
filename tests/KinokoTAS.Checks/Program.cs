@@ -111,7 +111,10 @@ internal static class Program {
    window.MouseDown(bookmarkPoint,MouseButton.Left);window.MouseUp(bookmarkPoint,MouseButton.Left);Dispatcher.UIThread.RunJobs();
    Check(timeline.SelectedFrame==12 && uiSession.ReadState()!.Completed==1,"bookmark double click selects timeline without seeking engine");
    bookmarkList.SelectedIndex=0;
+   Dispatcher.UIThread.RunJobs();
+   bookmarkPoint=bookmarkItem.TranslatePoint(new Point(8,8),window)!.Value;
    window.MouseDown(bookmarkPoint,MouseButton.Right);window.MouseUp(bookmarkPoint,MouseButton.Right);Dispatcher.UIThread.RunJobs();
+   Console.WriteLine($"Bookmark context: selected={bookmarkList.SelectedItem}, open={bookmarkList.ContextMenu?.IsOpen}, point={bookmarkPoint}");
    Check(bookmarkList.SelectedItem is FrameBookmark {Name:"pointer-target"} && bookmarkList.ContextMenu?.IsOpen==true,"bookmark right click targets clicked item");
    var renameMark=(FrameBookmark)bookmarkList.SelectedItem!;
    bookmarkList.ContextMenu!.Close();
