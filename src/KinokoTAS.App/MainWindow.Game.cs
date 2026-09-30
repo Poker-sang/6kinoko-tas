@@ -104,7 +104,7 @@ public partial class MainWindow {
             recordingSavePath=null;
             lastSaved=null;OpenSavedButton.IsEnabled=false;SavedPathLabel.Text="保存位置：尚未保存";
             if(Project is not null)Project.Changed-=OnChanged;
-            Project=null;Timeline.Project=null;sourcePath=null;dirty=false;
+            Project=null;Timeline.Project=null;sourcePath=null;dirty=false;documentUnsaved=true;savedLiveBranch=null;
             bookmarks.Clear();bookmarkFile=Path.Combine(session.SessionDirectory,"bookmarks.json");
         }
         liveTimeline=new();timelineSource=null;
@@ -178,7 +178,8 @@ public partial class MainWindow {
         finally {await old.DisposeAsync();}
     }
     
-    async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{if(!dirty||await ConfirmDiscard())await LaunchGame(true);});
+    public async Task NewRecordingAsync(){if(await ConfirmSaveChangesAsync())await LaunchGame(true);}
+    async void NewRecordingClick(object? s,RoutedEventArgs e)=>await Operate(NewRecordingAsync);
     async void PlayGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{RequireAppliedLayout();if(game is null)throw new InvalidOperationException("先启动会话。");await game.ResumeAsync(selectedSpeed,default);GamePanel.Focus();});
     async void PauseGameClick(object? s,RoutedEventArgs e){seeking?.Cancel();try{if(game is not null)await game.PauseAsync(default);}catch(Exception ex){GameStatus.Text=ex.Message;}}
     async void StepGameClick(object? s,RoutedEventArgs e)=>await Operate(async()=>{RequireAppliedLayout();if(game is not null){uint mask=CurrentMask();await game.StepAsync(Enumerable.Range(0,19).Select(i=>(mask&(1u<<i))!=0).ToArray(),default);}});

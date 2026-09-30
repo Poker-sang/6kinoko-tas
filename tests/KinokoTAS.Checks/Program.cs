@@ -173,6 +173,23 @@ internal static class Program {
    Check(RecordingPackage.Load(savePath).Replay.Count>0,"live save produces complete package");
    var saveAgain=window.SaveRecordingAsync();while(!saveAgain.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}saveAgain.GetAwaiter().GetResult();
    Check(window.RecordingSavePath==Path.GetFullPath(savePath),"subsequent save reuses destination without picker");
+   Check(!window.HasUnsavedChanges,"successful save marks current live prefix clean");
+   var changedFrame=editingSession; // The adopted engine is tested through bookmark changes below.
+   window.AddBookmarkAt(0,"未保存重点");
+   Check(window.HasUnsavedChanges,"bookmark changes require saving");
+   var newCancelled=window.NewRecordingAsync();
+   var promptDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(!window.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="PART_CloseButton") && DateTime.UtcNow<promptDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(window.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="PART_SecondaryButton" && b.IsVisible),"new recording uses three-choice save dialog");
+   window.GetVisualDescendants().OfType<Button>().Single(b=>b.Name=="PART_CloseButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+   while(!newCancelled.IsCompleted && DateTime.UtcNow<promptDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(newCancelled.IsCompletedSuccessfully && window.HasUnsavedChanges,"cancel new recording preserves unsaved document");
+   window.Close();Dispatcher.UIThread.RunJobs();
+   promptDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(!window.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="PART_CloseButton") && DateTime.UtcNow<promptDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   window.GetVisualDescendants().OfType<Button>().Single(b=>b.Name=="PART_CloseButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+   for(int wait=0;wait<40;wait++){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(window.IsVisible && window.HasUnsavedChanges,"cancel exit keeps window and unsaved contents");
    var undoCover=window.RestoreOverwriteAsync();while(!undoCover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}undoCover.GetAwaiter().GetResult();
    Check(window.Project.Source.Bytes.Span.SequenceEqual(beforeCover),"record takeover undo restores whole source tail");
    // Shortcuts are routed through the preview, while text undo remains local.

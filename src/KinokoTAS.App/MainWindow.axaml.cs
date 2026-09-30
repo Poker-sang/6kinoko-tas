@@ -11,11 +11,14 @@ public partial class MainWindow : Window {
         Timeline.BookmarkRequested+=frame=>{if(busy||gameCommand)return;try{AddBookmarkAt(frame,BookmarkName.Text??"");}catch(Exception ex){StatusLabel.Text=ex.Message;}};
         Timeline.Scrolled+=delta=>{FollowLatest.IsChecked=false;FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
         Closing+=async (_,e)=> {
+            if(allowClose)return;
+            if(closePending){e.Cancel=true;return;}
             if(gameCommand||busy){e.Cancel=true;seeking?.Cancel();StatusLabel.Text="正在结束当前操作，请稍后再次关闭。";return;}
-            if(game is not null && !allowClose){e.Cancel=true;try{await EndGame(false);if(!dirty){allowClose=true;Close();}}catch(Exception ex){StatusLabel.Text="结束录制失败："+ex.Message+"；会话文件已保留。";}return;}
-            if(allowClose || !dirty)return;
             e.Cancel=true;
-            if(await ConfirmDiscard()){allowClose=true;Close();}
+            closePending=true;
+            try{Timeline.FinishPainting();if(!await ConfirmSaveChangesAsync())return;await EndGame(false);allowClose=true;Close();}
+            catch(Exception ex){StatusLabel.Text="退出失败："+ex.Message+"；会话文件已保留。";}
+            finally{closePending=false;}
         };
         AddHandler(KeyDownEvent,EditorShortcut,RoutingStrategies.Tunnel);
         KeyDown+=async (_,e)=> {
@@ -41,13 +44,13 @@ public partial class MainWindow : Window {
     }
     public async Task OpenPathAsync(string path) {
         Timeline.FinishPainting();
-        if(busy || (dirty && !await ConfirmDiscard()))return;
+        if(busy || !await ConfirmSaveChangesAsync())return;
         busy=true;StatusLabel.Text="正在校验并读取录制…";
         try {
             var loaded=await Task.Run(()=>Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)?TasProject.Load(path):new TasProject(Replay.Load(path),Path.GetFileName(path)));
             if(game is not null)await EndGame(false);
             if(Project is not null)Project.Changed-=OnChanged;
-            bookmarkLayouts.Clear();recoveries.Clear();Project=loaded;sourcePath=Path.GetFullPath(path);dirty=false;Project.Changed+=OnChanged;
+            bookmarkLayouts.Clear();recoveries.Clear();Project=loaded;sourcePath=Path.GetFullPath(path);dirty=false;documentUnsaved=false;Project.Changed+=OnChanged;
             recordingSavePath=Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)?Path.GetFullPath(path):null;
             LoadBookmarksFor(Project.Source,sourcePath,Project.FrameCount);
             Timeline.LiveMasks=null;Timeline.Project=Project;Timeline.FirstFrame=0;Timeline.SelectedFrame=0;FrameScroll.Value=0;
@@ -83,12 +86,12 @@ public partial class MainWindow : Window {
         if(f<Timeline.FirstFrame || f>=Timeline.FirstFrame+rows)FrameScroll.Value=f;
         if(Timeline.LiveMasks is null)Refresh();else Timeline.InvalidateVisual();
     }
-    private async Task SaveProject() {
-        if(Project is null || busy || gameCommand)return;
+    private async Task SaveProject(bool duringConfirmation=false) {
+        if(Project is null || busy || (gameCommand && !duringConfirmation))return;
         var file=await StorageProvider.SaveFilePickerAsync(new(){Title="另存 TAS 项目",SuggestedFileName=Path.GetFileNameWithoutExtension(Project.SourceName)+".ktas",DefaultExtension="ktas",FileTypeChoices=[new("TAS 项目"){Patterns=["*.ktas"]}]});
         if(file?.TryGetLocalPath() is not string path)return;
         if(!Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)){StatusLabel.Text="项目必须使用 .ktas 扩展名。";return;}
-        try{Project.Save(path);RecordingLibrary.SaveBookmarks(path+".bookmarks.json",bookmarks);ShowSaved(path);dirty=false;StatusLabel.Text="项目已保存："+path;Refresh();}catch(Exception ex){StatusLabel.Text="保存失败："+ex.Message;}
+        try{Project.Save(path);RecordingLibrary.SaveBookmarks(path+".bookmarks.json",bookmarks);ShowSaved(path);dirty=false;documentUnsaved=false;saveRevision++;StatusLabel.Text="项目已保存："+path;Refresh();}catch(Exception ex){StatusLabel.Text="保存失败："+ex.Message;}
     }
     private async void ExportClick(object? s,RoutedEventArgs e) {
         if(Project is null || busy || gameCommand)return;

@@ -16,7 +16,7 @@ public partial class MainWindow {
     }
     void RefreshTimeline(SessionState state) {
         if(game is null)return;
-        if(game.IsLive){liveTimeline.Read(game.BranchPath,state.Completed);Timeline.LiveMasks=liveTimeline.Masks;}
+        if(game.IsLive){if(savedLiveBranch!=game.BranchPath || savedLiveFrames!=state.Completed)documentUnsaved=true;liveTimeline.Read(game.BranchPath,state.Completed);Timeline.LiveMasks=liveTimeline.Masks;}
         else UpdatePlaybackProject();
         Timeline.Playhead=checked((int)state.Completed-1);Timeline.Bookmarks=bookmarks;
         int count=Timeline.FrameCount;
@@ -28,11 +28,11 @@ public partial class MainWindow {
     }
     public async Task ToggleRecordingAsync() {
         if(game is null)throw new InvalidOperationException("先新建或打开录制。");
-        if(game.IsLive){using var cancel=new CancellationTokenSource();seeking=cancel;try{await game.SwitchToPlaybackAsync(cancel.Token);UpdatePlaybackProject();}finally{seeking=null;}}
+        if(game.IsLive){documentUnsaved=HasUnsavedChanges;using var cancel=new CancellationTokenSource();seeking=cancel;try{await game.SwitchToPlaybackAsync(cancel.Token);UpdatePlaybackProject();}finally{seeking=null;}}
         else {
             if(Project?.InvalidFrom is not null)throw new InvalidOperationException("请先应用输入修改，或撤销草稿后再接管录制。");
             await game.PauseAsync(default);var recovery=CaptureRecovery();
-            await game.TakeoverAsync();recoveries.Push(recovery);var boundary=game.ReadState()!.Completed;
+            await game.TakeoverAsync();documentUnsaved=true;recoveries.Push(recovery);var boundary=game.ReadState()!.Completed;
             foreach(var mark in bookmarks.Where(m=>m.Frame>=boundary).ToArray())bookmarks.Remove(mark);
             liveTimeline=new();timelineSource=null;FollowLatest.IsChecked=true;await game.ResumeAsync(selectedSpeed,default);
         }

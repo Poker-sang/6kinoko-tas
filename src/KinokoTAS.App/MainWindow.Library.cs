@@ -37,7 +37,7 @@ public partial class MainWindow {
         var marks=File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,frameCount??replay.Count):Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)&&RecordingPackage.IsPackage(path)?RecordingPackage.Load(path).Bookmarks:[];
         foreach(var mark in marks)bookmarks.Add(mark);
     }
-    void PersistBookmarks(){if(bookmarkFile is not null && Project?.HasLayoutChanges!=true)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);}
+    void PersistBookmarks(){documentUnsaved=true;if(bookmarkFile is not null && Project?.HasLayoutChanges!=true)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);}
     public async Task AddBookmarkAsync(string name) {
         int frame;
         if(Project?.HasLayoutChanges==true)frame=Timeline.SelectedFrame;
@@ -97,6 +97,9 @@ public partial class MainWindow {
         else replay=Project!.Source;
         RecordingPackage.Save(output,replay,initial,bookmarks.Where(m=>m.Frame<replay.Count));ShowSaved(output);
         recordingSavePath=Path.GetFullPath(output);
+        dirty=false;documentUnsaved=false;saveRevision++;
+        savedLiveBranch=game?.BranchPath;savedLiveFrames=replay.Count;
+        Refresh();
         StatusLabel.Text="录制、初始存档及书签已保存。";
     }
     void OpenSavedClick(object? s,RoutedEventArgs e){try{if(lastSaved is not null)Process.Start(new ProcessStartInfo(Path.GetDirectoryName(lastSaved)!){UseShellExecute=true});}catch(Exception ex){StatusLabel.Text="打开目录失败："+ex.Message;}}
