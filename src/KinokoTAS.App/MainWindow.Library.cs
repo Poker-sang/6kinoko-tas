@@ -14,7 +14,7 @@ public partial class MainWindow {
         var marks=File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,frameCount??replay.Count):Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)&&RecordingPackage.IsPackage(path)?RecordingPackage.Load(path).Bookmarks:[];
         foreach(var mark in marks)bookmarks.Add(mark);
     }
-    void PersistBookmarks(){if(bookmarkFile is not null)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);}
+    void PersistBookmarks(){if(bookmarkFile is not null && Project?.HasLayoutChanges!=true)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);}
     public async Task AddBookmarkAsync(string name) {
         int frame;
         if(Project?.HasLayoutChanges==true)frame=Timeline.SelectedFrame;

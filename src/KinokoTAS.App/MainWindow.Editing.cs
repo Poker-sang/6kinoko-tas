@@ -17,7 +17,7 @@ public partial class MainWindow {
     void AdoptSession(FileGameSession session) {
         game=session;timelineSource=null;liveTimeline=new();previewCount=-1;orderedGameWindow=0;
         GameImage.IsVisible=!session.ExternalWindow;ExternalHint.IsVisible=session.ExternalWindow;
-        EmbeddedOption.IsEnabled=false;UpdatePlaybackProject();bookmarkFile=BookmarkCache(Project!.Source);PersistBookmarks();Refresh();RefreshGameView();
+        EmbeddedOption.IsEnabled=false;UpdatePlaybackProject();bookmarkFile=BookmarkCache(Project!.Source);Refresh();RefreshGameView();
     }
     public async Task ApplyEditsAsync() {
         if(Project?.InvalidFrom is null)throw new InvalidOperationException("请先修改时间轴上的输入。");
@@ -32,7 +32,7 @@ public partial class MainWindow {
                 GameStatus.Text=operationProgress;
             }),cancel.Token);
             // Only adopt the result after a second complete, checkpoint-verified playback.
-            await old.DisposeAsync();recoveries.Push(recovery);AdoptSession(next);
+            await old.DisposeAsync();recoveries.Push(recovery);AdoptSession(next);PersistBookmarks();
             dirty=false;StatusLabel.Text="修改已执行并通过完整回放验证，可以保存 .krec；“恢复上次覆盖”可返回旧版本。";
         } finally {busy=false;seeking=null;operationProgress=null;RefreshGameView();}
     }
@@ -46,11 +46,11 @@ public partial class MainWindow {
             await restored.StartAsync(cancel.Token);await restored.SeekAsync(saved.Frame,cancel.Token);
             restored.Progress-=Report;
             await old.DisposeAsync();recoveries.Pop();AdoptSession(restored);
-            bookmarks.Clear();foreach(var mark in saved.Marks)bookmarks.Add(mark);PersistBookmarks();
+            bookmarks.Clear();foreach(var mark in saved.Marks)bookmarks.Add(mark);
             if(saved.Draft is not null && saved.Draft.Source.Bytes.Span.SequenceEqual(Project!.Source.Bytes.Span)) {
                 Project.Changed-=OnChanged;Project=saved.Draft;Project.Changed+=OnChanged;Timeline.Project=Project;dirty=Project.EditCount>0;
             }
-            Refresh();StatusLabel.Text="已恢复上次覆盖前的录制、位置、书签及输入草稿；被替换的录制仍保留在会话目录。";
+            PersistBookmarks();Refresh();StatusLabel.Text="已恢复上次覆盖前的录制、位置、书签及输入草稿；被替换的录制仍保留在会话目录。";
         } catch {await restored.DisposeAsync();throw;}
         finally {busy=false;seeking=null;operationProgress=null;RefreshGameView();}
         void Report(SessionState s){operationProgress=$"恢复旧版本：{s.Completed:N0} / {seekTarget:N0} 帧";GameStatus.Text=operationProgress;}
