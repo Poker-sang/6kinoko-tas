@@ -7,7 +7,7 @@ C# / .NET 10 + Avalonia 12 的《魔理沙与六个蘑菇》TAS 编辑器，配�
 
 ## 使用
 
-安装 .NET 10，构建或下载编辑器。首次新建/打开录制时选择支持 TAS 的 kinoko_modern_gpu.exe；游戏目录需自备原版三个 DAT。
+下载 Windows x64 NativeAOT 包即可运行，无需安装 .NET；从源码构建需要 .NET 10。首次新建/打开录制时选择支持 TAS 的 kinoko_modern_gpu.exe；游戏目录需自备原版三个 DAT。
 
 - 新建录制、打开录制、保存单文件 .krec（含初始存档和书签）。兼容旧 KINORPL1 录制。
 - 独立游戏窗口或可选内嵌预览；暂停、逐帧、从头重播、关闭后重新启动游戏。
@@ -43,6 +43,7 @@ dotnet run --project tests/KinokoTAS.Checks -c Release -- artifacts/checks-uniqu
 ```
 
 检查使用模拟引擎和 Avalonia 无窗口后端，不运行真实游戏。当前主要验证 Windows；其他平台编辑器运行未验证。
+NativeAOT 发布配置、依赖和验证范围见 [AOT 发布](docs/native-aot.md)。
 详细记录见 docs/，其中旧版交接路径为历史记录。
 
 ## 许可证
