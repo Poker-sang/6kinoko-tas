@@ -64,6 +64,11 @@ public partial class MainWindow {
     }
     async Task<string?> InitialDirectory(string? replay) {
         if(replay is not null) {
+            if(Path.GetExtension(replay).Equals(".ktas",StringComparison.OrdinalIgnoreCase)) {
+                var package=TasProject.Load(replay).EmbeddedRecording!;
+                var directory=Path.Combine(AppContext.BaseDirectory,"sessions","unpacked-"+Guid.NewGuid().ToString("N"),"initial");
+                package.ExtractInitial(directory);return directory;
+            }
             if(Path.GetExtension(replay).Equals(".krec",StringComparison.OrdinalIgnoreCase) && RecordingPackage.IsPackage(replay)) {
                 var package=RecordingPackage.Load(replay);var directory=Path.Combine(AppContext.BaseDirectory,"sessions","unpacked-"+Guid.NewGuid().ToString("N"),"initial");package.ExtractInitial(directory);return directory;
             }

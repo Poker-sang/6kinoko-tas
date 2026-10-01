@@ -5,12 +5,14 @@ namespace KinokoTAS.Core;
 public readonly record struct Cell(int Frame,int Action);
 public sealed record Edit(int Frame,int Action,bool Down);
 public readonly record struct FrameIntent(int SourceFrame,uint Mask);
-public sealed record ProjectManifest(int Version,string SourceName,Edit[] Edits,FrameIntent[]? Frames=null);
+public sealed record ProjectManifest(int Version,string SourceName,Edit[] Edits,FrameIntent[]? Frames=null,FrameBookmark[]? Bookmarks=null);
 public sealed record FrameLayoutChange(long Id,int First,int Removed,int Inserted,bool Forward);
 
 public sealed class TasProject {
     public Replay Source {get;}
     public string SourceName {get;}
+    public RecordingPackage? EmbeddedRecording {get;private set;}
+    public FrameBookmark[]? EmbeddedBookmarks {get;private set;}
     readonly List<FrameIntent> frames;
     readonly SortedSet<int> editedFrames=[];
     readonly Stack<Action<bool>> undo=[],redo=[];
@@ -117,24 +119,34 @@ public sealed class TasProject {
     public void Undo(){if(!IsPainting && undo.TryPop(out var change)){change(false);redo.Push(change);Changed?.Invoke();}}
     public void Redo(){if(!IsPainting && redo.TryPop(out var change)){change(true);undo.Push(change);Changed?.Invoke();}}
     public void ExportSource(string path)=>AtomicFile.Write(path,stream=>stream.Write(Source.Bytes.Span));
-    public void Save(string path)=>AtomicFile.Write(path,stream=> {
+    public void Save(string path)=>Save(path,null,null);
+    public void Save(string path,string? initial,IEnumerable<FrameBookmark>? bookmarks) {
+        var package=initial is not null?RecordingPackage.Capture(Source,initial,[]):EmbeddedRecording??new RecordingPackage(Source,[],new());
+        var marks=(bookmarks??EmbeddedBookmarks??[]).ToArray();
+        if(marks.Any(m=>m.Frame<0||m.Frame>=FrameCount||string.IsNullOrWhiteSpace(m.Name)))throw new InvalidDataException("草稿重点无效。");
+        AtomicFile.Write(path,stream=> {
         using var zip=new ZipArchive(stream,ZipArchiveMode.Create,true);
-        using(var raw=zip.CreateEntry("source.krec",CompressionLevel.Optimal).Open())raw.Write(Source.Bytes.Span);
-        var manifest=new ProjectManifest(2,SourceName,[],frames.ToArray());
+        using(var raw=zip.CreateEntry("source.krec",CompressionLevel.Optimal).Open()) {
+            new RecordingPackage(Source,[],package.Initial).WriteTo(raw);
+        }
+        var manifest=new ProjectManifest(3,SourceName,[],frames.ToArray(),marks);
         using var json=zip.CreateEntry("project.json",CompressionLevel.Optimal).Open();JsonSerializer.Serialize(json,manifest,RecordingJsonContext.Default.ProjectManifest);
-    });
+        });
+    }
     public static TasProject Load(string path) {
         using var zip=ZipFile.OpenRead(path);
         if(zip.Entries.Count!=2)throw new InvalidDataException("项目内容无效。");
         var raw=zip.GetEntry("source.krec")??throw new InvalidDataException("缺少原始录制。");
         var json=zip.GetEntry("project.json")??throw new InvalidDataException("缺少项目清单。");
-        if(raw.Length>Replay.HeaderSize+(long)Replay.RecordSize*Replay.MaxFrames+17 || json.Length>128*1024*1024)throw new InvalidDataException("项目超过大小限制。");
+        if(raw.Length>Replay.HeaderSize+(long)Replay.RecordSize*Replay.MaxFrames+65*1024*1024 || json.Length>128*1024*1024)throw new InvalidDataException("项目超过大小限制。");
         using var memory=new MemoryStream();using(var stream=raw.Open())stream.CopyTo(memory);
-        var replay=Replay.Parse(memory.ToArray());
         using var metadata=json.Open();var manifest=JsonSerializer.Deserialize(metadata,RecordingJsonContext.Default.ProjectManifest)??throw new InvalidDataException("项目清单为空。");
-        if(manifest.Version is not (1 or 2) || manifest.Edits is null || string.IsNullOrWhiteSpace(manifest.SourceName))throw new InvalidDataException("不支持的项目版本。");
+        if(manifest.Version!=3 || manifest.Edits is null || string.IsNullOrWhiteSpace(manifest.SourceName))throw new InvalidDataException("请使用包含初始存档的新版 .ktas 草稿。");
+        memory.Position=0;
+        var package=RecordingPackage.Load(memory);
+        var replay=package.Replay;
         var project=new TasProject(replay,manifest.SourceName);
-        if(manifest.Version==2) {
+        {
             if(manifest.Frames is null || (manifest.Frames.Length<1 && replay.Count>0) || manifest.Frames.Length>Replay.MaxFrames || manifest.Edits.Length>0)throw new InvalidDataException("项目帧布局无效。");
             int previousSource=-1;
             foreach(var frame in manifest.Frames) {
@@ -142,13 +154,9 @@ public sealed class TasProject {
                 if(frame.SourceFrame>=0)previousSource=frame.SourceFrame;
             }
             project.frames.Clear();project.frames.AddRange(manifest.Frames);project.Reindex();
-        } else {
-            var seen=new HashSet<Cell>();
-            foreach(var edit in manifest.Edits) {
-                if((uint)edit.Frame>=(uint)replay.Count || (uint)edit.Action>=Replay.ActionCount || !seen.Add(new(edit.Frame,edit.Action)) || project.Down(edit.Frame,edit.Action)==edit.Down)throw new InvalidDataException("项目含无效、重复或冗余编辑。");
-                project.SetMask(edit.Frame,edit.Down?project.Mask(edit.Frame)|(1u<<edit.Action):project.Mask(edit.Frame)&~(1u<<edit.Action));
-            }
         }
+        if(manifest.Bookmarks is null || manifest.Bookmarks.Any(m=>m is null || m.Frame<0 || m.Frame>=project.FrameCount || string.IsNullOrWhiteSpace(m.Name)))throw new InvalidDataException("草稿重点无效。");
+        project.EmbeddedRecording=package;project.EmbeddedBookmarks=manifest.Bookmarks;
         return project;
     }
 }

@@ -90,7 +90,14 @@ public partial class MainWindow : Window {
         var file=await StorageProvider.SaveFilePickerAsync(new(){Title="导出编辑草稿（不是可回放录制）",SuggestedFileName=Path.GetFileNameWithoutExtension(Project.SourceName)+".ktas",DefaultExtension="ktas",FileTypeChoices=[new("编辑草稿（待应用）"){Patterns=["*.ktas"]}]});
         if(file?.TryGetLocalPath() is not string path)return;
         if(!Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)){StatusLabel.Text="项目必须使用 .ktas 扩展名。";return;}
-        try{Project.Save(path);RecordingLibrary.SaveBookmarks(path+".bookmarks.json",bookmarks);StatusLabel.Text="编辑草稿已导出："+path+"；录制仍需用 Ctrl+S 保存为 .krec。";Refresh();}catch(Exception ex){StatusLabel.Text="草稿导出失败："+ex.Message;}
+        try{await SaveDraftToAsync(path);StatusLabel.Text="编辑草稿已导出（含初始存档和重点）："+path+"；录制仍需用 Ctrl+S 保存为 .krec。";Refresh();}catch(Exception ex){StatusLabel.Text="草稿导出失败："+ex.Message;}
+    }
+    public async Task SaveDraftToAsync(string path) {
+        if(Project is null)throw new InvalidOperationException("先打开录制。");
+        if(!Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("草稿必须使用 .ktas 扩展名。");
+        var initial=game is not null?Path.Combine(game.SessionDirectory,"initial"):await InitialDirectory(sourcePath);
+        if(initial is null)return;
+        Project.Save(path,initial,bookmarks);
     }
     private async void ExportClick(object? s,RoutedEventArgs e) {
         if(Project is null || busy || gameCommand)return;

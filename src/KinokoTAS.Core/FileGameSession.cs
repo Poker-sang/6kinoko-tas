@@ -56,7 +56,7 @@ public sealed class FileGameSession : IGameSession {
         if(IsLive)throw new InvalidOperationException("请先暂停录制并切换回放，再修改输入。");
         if(source is null || !Replay.Load(source).Bytes.Span.SequenceEqual(project.Source.Bytes.Span))throw new InvalidOperationException("输入草稿与当前会话来源不一致。");
         if(IsRunning)await PauseAsync(ct);
-        string draft=Path.Combine(root,"edit-"+Guid.NewGuid().ToString("N")+".ktas");project.Save(draft);
+        string draft=Path.Combine(root,"edit-"+Guid.NewGuid().ToString("N")+".ktas");project.Save(draft,Path.Combine(root,"initial"),null);
         var frozen=TasProject.Load(draft);
         await using var generated=CreatePlaybackSession(source);
         generated.editPlan=frozen;

@@ -33,9 +33,9 @@ public partial class MainWindow {
     string BookmarkCache(Replay replay)=>Path.Combine(Path.GetDirectoryName(SettingsPath)!,"bookmarks",Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(replay.Bytes.Span))+".json");
     void LoadBookmarksFor(Replay replay,string path,int? frameCount=null) {
         bookmarkFile=BookmarkCache(replay);bookmarks.Clear();
-        var stored=path.EndsWith(".ktas",StringComparison.OrdinalIgnoreCase)&&File.Exists(path+".bookmarks.json")?path+".bookmarks.json":File.Exists(bookmarkFile)?bookmarkFile:path+".bookmarks.json";
+        var stored=File.Exists(bookmarkFile)?bookmarkFile:path+".bookmarks.json";
         var packed=Path.GetExtension(path).Equals(".krec",StringComparison.OrdinalIgnoreCase)&&RecordingPackage.IsPackage(path);
-        var marks=packed?RecordingPackage.Load(path).Bookmarks:File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,frameCount??replay.Count):[];
+        var marks=path.EndsWith(".ktas",StringComparison.OrdinalIgnoreCase)?Project!.EmbeddedBookmarks!:packed?RecordingPackage.Load(path).Bookmarks:File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,frameCount??replay.Count):[];
         foreach(var mark in marks)bookmarks.Add(mark);
     }
     void PersistBookmarks(){documentUnsaved=true;if(bookmarkFile is not null && Project?.HasLayoutChanges!=true)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);RefreshEditWorkflow();}
