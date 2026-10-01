@@ -23,7 +23,7 @@ internal static class Program {
   w.Write((byte)0);w.Write((ulong)count);w.Write(chain);return s.ToArray();
  }
  [STAThread] static int Main(string[] args) {
-  if(args.Contains("-pixel_format")){using var input=Console.OpenStandardInput();using var output=File.Create(args[^1]);input.CopyTo(output);return 0;}
+  if(args.Contains("-pixel_format")){using var input=Console.OpenStandardInput();using var output=File.Create(args[^1]);input.CopyTo(output);if(args[^1].Contains("encoder-fail")){Console.Error.WriteLine("injected encoder failure");return 9;}return 0;}
   if(args.Contains("--tas-dir"))return FakeEngine(args);
   try {
    string output=Path.GetFullPath(args.Length>0?args[0]:"artifacts/checks-"+DateTime.Now.ToString("yyyyMMdd-HHmmss"));
@@ -223,6 +223,11 @@ internal static class Program {
    Check(RecordingPackage.Load(savePath).Replay.Count>0,"live save produces complete package");
    var saveAgain=window.SaveRecordingAsync();while(!saveAgain.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}saveAgain.GetAwaiter().GetResult();
    Check(window.RecordingSavePath==Path.GetFullPath(savePath),"subsequent save reuses destination without picker");
+   int beforeVideoProcess=window.CurrentGameProcessId;
+   var beforeVideoBytes=File.ReadAllBytes(savePath);
+   var uiVideo=window.ExportVideoToAsync(Path.Combine(output,"ui-video.mp4"),0,0,fakeExe,fakeExe);
+   while(!uiVideo.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}uiVideo.GetAwaiter().GetResult();Dispatcher.UIThread.RunJobs();
+   Check(beforeVideoProcess>0&&window.CurrentGameProcessId==beforeVideoProcess&&File.ReadAllBytes(savePath).SequenceEqual(beforeVideoBytes)&&!window.IsVideoExporting,"UI video export preserves current game and saved recording");
    Check(!window.HasUnsavedChanges,"successful save marks current live prefix clean");
    window.AddBookmarkAt(0,"未保存重点");
    Check(window.HasUnsavedChanges,"bookmark changes require saving");
@@ -443,6 +448,9 @@ internal static class Program {
   var cancelled=Path.Combine(output,"cancel-video.mp4");File.WriteAllText(cancelled,"keep");using var cancel=new CancellationTokenSource();
   bool stopped=false;try{await VideoExporter.ExportAsync(Session("cancel-video-session"),exe,cancelled,0,20,new ExportProgress(p=>{if(p.Completed==1)cancel.Cancel();}),cancel.Token);}catch(OperationCanceledException){stopped=true;}
   Check(stopped&&File.ReadAllText(cancelled)=="keep","cancelled export preserves existing video");
+  var failed=Path.Combine(output,"encoder-fail.mp4");File.WriteAllText(failed,"keep");bool rejected=false;
+  try{await VideoExporter.ExportAsync(Session("failed-video-session"),exe,failed,0,1);}catch(IOException){rejected=true;}
+  Check(rejected&&File.ReadAllText(failed)=="keep"&&File.ReadAllText(Path.Combine(output,"failed-video-session","ffmpeg.log")).Contains("injected"),"encoder failure preserves destination and diagnostic");
   string? encoder=VideoExporter.FindEncoder();if(encoder is not null){var real=await VideoExporter.ExportAsync(Session("real-video-session"),encoder,Path.Combine(output,"real-video.mp4"),0,4);Check(real.Frames==5&&new FileInfo(real.Path).Length>100,"real FFmpeg MP4 encoding with synthetic game frames");}
  }
  static async Task<string> ProtocolCheck(string output,string replay) {

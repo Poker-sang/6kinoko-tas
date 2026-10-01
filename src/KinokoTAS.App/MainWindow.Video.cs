@@ -10,6 +10,7 @@ public partial class MainWindow {
     string? ffmpegExe;
     CancellationTokenSource? videoExport;
     public bool IsVideoExporting=>videoExport is not null;
+    public int CurrentGameProcessId=>game?.GameProcessId??0;
     sealed class VideoProgress(Action<VideoExportProgress> report):IProgress<VideoExportProgress> {
         public void Report(VideoExportProgress value)=>report(value);
     }
