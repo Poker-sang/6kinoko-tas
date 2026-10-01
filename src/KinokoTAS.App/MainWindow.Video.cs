@@ -3,11 +3,9 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using KinokoTAS.App.Controls;
 using KinokoTAS.Core;
 
 namespace KinokoTAS.App;
@@ -32,7 +30,7 @@ public partial class MainWindow
 
     private async void ExportVideoClick(object? sender, RoutedEventArgs args)
     {
-        if (_videoExport is not null || _dialogHost?.IsOpen == true)
+        if (_videoExport is not null || _dialogs.IsOpen)
             return;
 
         try
@@ -62,7 +60,7 @@ public partial class MainWindow
                 return;
 
             SaveSettings();
-            var range = await ChooseVideoRangeAsync(saved, replay.Count);
+            var range = await _dialogs.ChooseVideoRangeAsync(saved, replay.Count);
             if (range is null)
                 return;
 
@@ -89,75 +87,6 @@ public partial class MainWindow
         }
     }
 
-    private async Task<(int First, int Last)?> ChooseVideoRangeAsync(string saved, int count)
-    {
-        _dialogHost ??= new ContentDialogHost(this);
-        var entire = new CheckBox
-        {
-            Content = "整段录制",
-            IsChecked = true
-        };
-        var first = new NumericUpDown
-        {
-            Minimum = 0,
-            Maximum = count - 1,
-            Value = 0,
-            FormatString = "0",
-            IsEnabled = false
-        };
-        var last = new NumericUpDown
-        {
-            Minimum = 0,
-            Maximum = count - 1,
-            Value = count - 1,
-            FormatString = "0",
-            IsEnabled = false
-        };
-        var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = $"{Path.GetFileName(saved)} · {count:N0} 帧\n无声 MP4 · 60 FPS\n导出已保存内容；未保存的编辑和录制不会包含。",
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap
-        });
-        panel.Children.Add(entire);
-        panel.Children.Add(new TextBlock { Text = "开始帧 / 结束帧（包含两端）" });
-        panel.Children.Add(first);
-        panel.Children.Add(last);
-        var dialog = new ContentDialog
-        {
-            Title = "导出视频",
-            Content = panel,
-            PrimaryButtonText = "选择保存位置",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-            IsLightDismissEnabled = false
-        };
-        entire.IsCheckedChanged += (_, _) =>
-        {
-            first.IsEnabled = last.IsEnabled = entire.IsChecked != true;
-            dialog.IsPrimaryButtonEnabled = entire.IsChecked == true || first.Value <= last.Value;
-        };
-        first.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = first.Value <= last.Value;
-        last.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = first.Value <= last.Value;
-        var body = Content as Control;
-        var enabled = body?.IsEnabled ?? true;
-        body?.IsEnabled = false;
-
-        try
-        {
-            if (await dialog.ShowAsync(_dialogHost) != ContentDialogResult.Primary)
-                return null;
-
-            return entire.IsChecked == true
-                ? (0, count - 1)
-                : ((int) (first.Value ?? 0), (int) (last.Value ?? count - 1));
-        }
-        finally
-        {
-            body?.IsEnabled = enabled;
-        }
-    }
-
     public async Task<VideoExportResult> ExportVideoToAsync(string output, int first, int last, string encoder,
         string? engine = null)
     {
@@ -181,20 +110,8 @@ public partial class MainWindow
                 VideoProgressLabel.Text =
                     $"{p.Stage} · {p.Completed:N0} / {p.Total:N0} 帧 · {100.0 * p.Completed / p.Total:F0}%";
             }));
-            var result = await Task.Run(async () =>
-            {
-                var package = RecordingPackage.Load(saved);
-                var root = Path.Combine(AppContext.BaseDirectory, "video-exports",
-                    "export-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N")[..8]);
-                Directory.CreateDirectory(root);
-                var initial = Path.Combine(root, "initial");
-                package.ExtractInitial(initial);
-                var source = Path.Combine(root, "source.krec");
-                AtomicFile.Write(source, s => s.Write(package.Replay.Bytes.Span));
-                await using var session = new FileGameSession(executable, Path.Combine(root, "session"), source,
-                    initial, package.Replay.Identity, false, true);
-                return await VideoExporter.ExportAsync(session, encoder, output, first, last, progress, cancel.Token);
-            }, cancel.Token);
+            var result = await _workspace.ExportVideoAsync(saved, executable, output, first, last, encoder, progress,
+                cancel.Token);
             VideoProgressLabel.Text = $"已导出 {result.Frames:N0} 帧 · 无声 60 FPS · {result.Path}";
             return result;
         }

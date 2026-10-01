@@ -121,7 +121,7 @@ public partial class MainWindow
         RefreshGameView();
         if (_game.IsLive)
         {
-            _gameKeys.Clear();
+            _input.Clear();
             _game.Input(0);
             await FocusGameWindowAsync();
         }
@@ -158,7 +158,7 @@ public partial class MainWindow
             GameStatus.Text = "重新启动游戏，正在恢复位置…";
             await _game.RestartAsync(cancel.Token);
             _timelineSource = null;
-            _previewCount = -1;
+            _preview.Reset();
             _orderedGameWindow = 0;
             UpdatePlaybackProject();
             RefreshGameView();

@@ -181,6 +181,7 @@ internal static class Program
             Check(liveReader.Masks.Count == 2 && (liveReader.Masks[1] & (1u << 4)) != 0,
                 "live reader incrementally appends validated input");
             var fakeExe = ProtocolCheck(output, replayPath).GetAwaiter().GetResult();
+            WorkspaceChecks.RunAsync(replay, fakeExe, output, Check).GetAwaiter().GetResult();
             VideoChecks(fakeExe, output, replayPath).GetAwaiter().GetResult();
             var marks = new[] { new FrameBookmark(2, "Boss 前"), new FrameBookmark(10, "重点") };
             var bundle = RecordingLibrary.SaveBundle(output, replay, Path.Combine(output, "initial"), marks);
@@ -273,7 +274,9 @@ internal static class Program
                 Thread.Sleep(5);
             }
 
-            Check(confirmation is { IsCompletedSuccessfully: true, Result: true } && (window.Content as Control)!.IsEnabled,
+            Check(
+                confirmation is { IsCompletedSuccessfully: true, Result: true } &&
+                (window.Content as Control)!.IsEnabled,
                 "dialog primary result restores background controls");
             var cancellation = window.ConfirmContentAsync("验证录制", "出现不同步时停止。", "开始回放", "取消");
             Dispatcher.UIThread.RunJobs();
@@ -740,7 +743,8 @@ internal static class Program
                 Thread.Sleep(5);
             }
 
-            Check(window is { IsVisible: true, HasUnsavedChanges: true }, "cancel exit keeps window and unsaved contents");
+            Check(window is { IsVisible: true, HasUnsavedChanges: true },
+                "cancel exit keeps window and unsaved contents");
             var undoCover = window.RestoreOverwriteAsync();
             while (!undoCover.IsCompleted)
             {
@@ -1480,7 +1484,8 @@ internal static class Program
         Check(session.IsLive && session.ReadState()?.Phase == "live-paused", "takeover acknowledgment");
         var liveProcess = session.GameProcessId;
         var captured = await session.CaptureRecordingAsync();
-        Check(captured.Count == 3 && session is { IsRunning: true, IsLive: true } && session.GameProcessId == liveProcess,
+        Check(
+            captured.Count == 3 && session is { IsRunning: true, IsLive: true } && session.GameProcessId == liveProcess,
             "live snapshot leaves process and mode intact");
         await session.StepAsync(new bool[19], CancellationToken.None);
         Check(session.ReadState()?.Completed == 4, "single frame acknowledgment");

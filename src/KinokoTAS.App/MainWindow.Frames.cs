@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using KinokoTAS.Core;
@@ -16,8 +14,7 @@ public partial class MainWindow
     private bool _frameToolsReady;
     private double _selectedSpeed = 1;
 
-    private readonly Dictionary<TasProject, Dictionary<long, (FrameBookmark[] Forward, FrameBookmark[] Backward)>>
-        _bookmarkLayouts = [];
+    private readonly BookmarkLayoutHistory _bookmarkLayouts = new();
 
     private void InitializeFrameTools()
     {
@@ -56,24 +53,9 @@ public partial class MainWindow
         if (Project is null)
             return;
 
-        if (!_bookmarkLayouts.TryGetValue(Project, out var history))
-        {
-            history = [];
-            _bookmarkLayouts.Add(Project, history);
-        }
-
-        history.TryGetValue(change.Id, out var saved);
-        var removed = change.Forward ? change.Removed : change.Inserted;
-        var inserted = change.Forward ? change.Inserted : change.Removed;
-        var lost = _bookmarks.Where(mark => mark.Frame >= change.First && mark.Frame < change.First + removed)
-            .ToArray();
-        var retained = _bookmarks.Except(lost).Select(mark =>
-                mark.Frame >= change.First + removed ? mark with { Frame = mark.Frame + inserted - removed } : mark)
-            .ToList();
-        retained.AddRange((change.Forward ? saved.Backward : saved.Forward) ?? []);
-        history[change.Id] = change.Forward ? (lost, saved.Backward ?? []) : (saved.Forward ?? [], lost);
+        var marks = _bookmarkLayouts.Apply(Project, _bookmarks, change);
         _bookmarks.Clear();
-        foreach (var mark in retained.OrderBy(mark => mark.Frame))
+        foreach (var mark in marks)
             _bookmarks.Add(mark);
 
         var maximum = Math.Max(0, Project.FrameCount - 1);

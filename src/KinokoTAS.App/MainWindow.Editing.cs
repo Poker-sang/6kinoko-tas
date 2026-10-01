@@ -29,7 +29,7 @@ public partial class MainWindow
         _game = session;
         _timelineSource = null;
         _liveTimeline = new();
-        _previewCount = -1;
+        _preview.Reset();
         _orderedGameWindow = 0;
         GameImage.IsVisible = !session.ExternalWindow;
         ExternalHint.IsVisible = session.ExternalWindow;
@@ -202,7 +202,7 @@ public partial class MainWindow
 
     private async void EditorShortcut(object? sender, KeyEventArgs e)
     {
-        if (_dialogHost?.IsOpen == true)
+        if (_dialogs.IsOpen)
             return;
 
         switch (e.Key)
