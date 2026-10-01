@@ -315,7 +315,7 @@ internal static class Program {
    var shortcutPlayback=shortcutWindow.ProcessGameRequestsAsync();
    while(!shortcutPlayback.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}shortcutPlayback.GetAwaiter().GetResult();
    Check(!shortcutSession.IsLive && shortcutSession.ReadState()?.Phase=="paused" && shortcutSession.LastRecoveryPath is not null,"game F8 seals recording and returns to playback with recovery retained");
-   Check(File.ReadAllBytes(replayPath).SequenceEqual(bytes),"game shortcut takeover leaves original recording unchanged");
+   Check(File.ReadAllBytes(replayPath).SequenceEqual(data),"game shortcut takeover leaves original recording unchanged");
    var shortcutStop=shortcutWindow.StopGameSessionAsync();
    while(!shortcutStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}shortcutStop.GetAwaiter().GetResult();shortcutWindow.Hide();
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
