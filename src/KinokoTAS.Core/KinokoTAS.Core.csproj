@@ -1,1 +1,6 @@
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><AssemblyName>6kinokoTAS.Core</AssemblyName><RootNamespace>KinokoTAS.Core</RootNamespace></PropertyGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>6kinokoTAS.Core</AssemblyName>
+        <RootNamespace>KinokoTAS.Core</RootNamespace>
+    </PropertyGroup>
+</Project>

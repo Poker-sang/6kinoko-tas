@@ -20,10 +20,10 @@ namespace KinokoTAS.App.Controls;
 /// </summary>
 public class ContentDialogHost : TemplatedControl
 {
-    private const string pcOpen = ":open";
-    private const string pcCompact = ":compact";
-    private const string partRoot = "PART_Root";
-    private const string partDialogPanel = "PART_DialogPanel";
+    private const string PcOpen = ":open";
+    private const string PcCompact = ":compact";
+    private const string PartRoot = "PART_Root";
+    private const string PartDialogPanel = "PART_DialogPanel";
 
     private readonly ObservableCollection<ContentDialog> _dialogs = [];
     private TopLevel? _host;
@@ -164,14 +164,12 @@ public class ContentDialogHost : TemplatedControl
     {
         base.OnApplyTemplate(e);
 
-        if (_root is not null)
-            _root.PointerPressed -= RootOnPointerPressed;
+        _root?.PointerPressed -= RootOnPointerPressed;
 
-        _root = e.NameScope.Find<Control>(partRoot);
-        _dialogPanel = e.NameScope.Find<Panel>(partDialogPanel);
+        _root = e.NameScope.Find<Control>(PartRoot);
+        _dialogPanel = e.NameScope.Find<Panel>(PartDialogPanel);
 
-        if (_root is not null)
-            _root.PointerPressed += RootOnPointerPressed;
+        _root?.PointerPressed += RootOnPointerPressed;
 
         SyncPanelChildren();
         UpdateOpenState();
@@ -268,7 +266,7 @@ public class ContentDialogHost : TemplatedControl
 
     private void UpdateOpenState()
     {
-        PseudoClasses.Set(pcOpen, IsOpen);
+        PseudoClasses.Set(PcOpen, IsOpen);
         IsHitTestVisible = IsOpen;
         IsVisible = IsOpen;
     }
@@ -277,7 +275,7 @@ public class ContentDialogHost : TemplatedControl
     {
         var width = _host?.ClientSize.Width ?? Bounds.Width;
         var compact = width > 0 && width <= CompactBreakpoint;
-        PseudoClasses.Set(pcCompact, compact);
+        PseudoClasses.Set(PcCompact, compact);
 
         var topmost = _dialogs.Count > 0 ? _dialogs[^1] : null;
         foreach (var dialog in _dialogs)

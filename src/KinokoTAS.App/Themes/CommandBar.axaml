@@ -1,40 +1,43 @@
-<!-- Copyright (c) Pixeval. Licensed under GPL-3.0. -->
-<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Styles.Resources><ResourceDictionary>
-    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
-    <ControlTheme
-        x:Key="{x:Type CommandBar}"
-        BasedOn="{StaticResource {x:Type CommandBar}}"
-        TargetType="{x:Type CommandBar}">
-        <Setter Property="Background" Value="Transparent" />
-    </ControlTheme>
+<!--  Copyright (c) Pixeval. Licensed under GPL-3.0.  -->
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Styles.Resources>
+        <ResourceDictionary>
+            <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+            <ControlTheme
+                x:Key="{x:Type CommandBar}"
+                BasedOn="{StaticResource {x:Type CommandBar}}"
+                TargetType="{x:Type CommandBar}">
+                <Setter Property="Background" Value="Transparent" />
+            </ControlTheme>
 
-    <ControlTheme
-        x:Key="{x:Type CommandBarToggleButton}"
-        BasedOn="{StaticResource {x:Type CommandBarToggleButton}}"
-        TargetType="{x:Type CommandBarToggleButton}">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
-        <Setter Property="Margin" Value="0,4" />
-    </ControlTheme>
+            <ControlTheme
+                x:Key="{x:Type CommandBarToggleButton}"
+                BasedOn="{StaticResource {x:Type CommandBarToggleButton}}"
+                TargetType="{x:Type CommandBarToggleButton}">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+                <Setter Property="Margin" Value="0,4" />
+            </ControlTheme>
 
-    <ControlTheme
-        x:Key="{x:Type CommandBarButton}"
-        BasedOn="{StaticResource {x:Type CommandBarButton}}"
-        TargetType="{x:Type CommandBarButton}">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
-        <Setter Property="Margin" Value="0,4" />
-    </ControlTheme>
+            <ControlTheme
+                x:Key="{x:Type CommandBarButton}"
+                BasedOn="{StaticResource {x:Type CommandBarButton}}"
+                TargetType="{x:Type CommandBarButton}">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+                <Setter Property="Margin" Value="0,4" />
+            </ControlTheme>
 
-</ResourceDictionary></Styles.Resources>
+        </ResourceDictionary>
+    </Styles.Resources>
 
 
     <Style Selector="CommandBarButton[IsCompact=True]">
-        <Setter Property="ToolTip.Tip" Value="{CompiledBinding $self.Label, DataType={x:Type CommandBarButton}}" />
+        <Setter Property="ToolTip.Tip" Value="{Binding $self.Label, x:DataType={x:Type CommandBarButton}}" />
     </Style>
 
     <Style Selector="CommandBarToggleButton[IsCompact=True]">
-        <Setter Property="ToolTip.Tip" Value="{CompiledBinding $self.Label, DataType={x:Type CommandBarToggleButton}}" />
+        <Setter Property="ToolTip.Tip" Value="{Binding $self.Label, x:DataType={x:Type CommandBarToggleButton}}" />
     </Style>
 
     <Style Selector="CommandBarButton[IsInOverflow=True] /template/ ContentPresenter#PART_IconPresenter">

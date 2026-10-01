@@ -1,9 +1,12 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/KinokoTAS.App/KinokoTAS.App.csproj" />
-    <Project Path="src/KinokoTAS.Core/KinokoTAS.Core.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/KinokoTAS.Checks/KinokoTAS.Checks.csproj" />
-  </Folder>
+    <Folder Name="/src/">
+        <Project Path="src/KinokoTAS.App/KinokoTAS.App.csproj"/>
+        <Project Path="src/KinokoTAS.Core/KinokoTAS.Core.csproj"/>
+    </Folder>
+    <Folder Name="/tests/">
+        <Project Path="tests/KinokoTAS.Checks/KinokoTAS.Checks.csproj"/>
+    </Folder>
+    <Folder Name="/tools/">
+        <Project Path="tools/RecordingRecovery/RecordingRecovery.csproj"/>
+    </Folder>
 </Solution>

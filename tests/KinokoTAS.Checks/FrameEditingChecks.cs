@@ -1,43 +1,138 @@
+using System;
+using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text.Json;
 using KinokoTAS.Core;
-internal static class FrameEditingChecks {
-    static void Check(bool condition,string name){if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
-    public static void Run(Replay replay,string output) {
-        var project=new TasProject(replay,"layout.krec");project.SetRange(5,9,4,false);project.InsertFrames(2,2);
-        Check(project.FrameCount==182 && project.SourceFrame(2)==-1 && project.SourceFrame(4)==2 && !project.Down(7,4),"insert preserves shifted input edits and original mapping");
-        var before=Enumerable.Range(0,project.FrameCount).Select(project.Mask).ToArray();
-        project.BeginPaint();project.SetRange(2,5,5,true);project.SetRange(4,7,5,true);project.EndPaint();project.Undo();
-        Check(Enumerable.Range(0,project.FrameCount).Select(project.Mask).SequenceEqual(before),"overlapping drag painting undoes as one complete stroke");
-        project.Redo();Check(project.Down(2,5)&&project.Down(7,5),"drag stroke redo restores full span");project.Undo();
-        project.DeleteFrames(3,4);Check(project.FrameCount==178,"delete changes draft length");project.Undo();
-        Check(Enumerable.Range(0,project.FrameCount).Select(project.Mask).SequenceEqual(before),"delete undo restores masks and shifted source frames");
-        string draft=Path.Combine(output,"layout.ktas");project.Save(draft);var loaded=TasProject.Load(draft);
-        Check(loaded.FrameCount==182 && loaded.SourceFrame(2)==-1 && loaded.Mask(7)==project.Mask(7) && loaded.Source.Bytes.Span.SequenceEqual(replay.Bytes.Span),"layout draft roundtrip preserves immutable original");
-        Check(loaded.EmbeddedRecording is not null && loaded.EmbeddedRecording.Initial.Count==0,"empty initial state is explicitly embedded in draft");
-        var draftInitial=Path.Combine(output,"draft-initial");Directory.CreateDirectory(draftInitial);File.WriteAllText(Path.Combine(draftInitial,"marisaA.dat"),"draft-save");
-        var portable=Path.Combine(output,"portable-draft.ktas");loaded.Save(portable,draftInitial,[new(181,"新增帧重点")]);
-        var movedFolder=Path.Combine(output,"isolated-draft");Directory.CreateDirectory(movedFolder);
-        var moved=Path.Combine(movedFolder,"moved.ktas");File.Move(portable,moved);
-        var movedProject=TasProject.Load(moved);
-        Check(System.Text.Encoding.UTF8.GetString(movedProject.EmbeddedRecording!.Initial["marisaA.dat"])=="draft-save" && movedProject.EmbeddedBookmarks!.Single().Frame==181,"moved draft carries initial save and bookmark beyond source EOF");
-        var resaved=Path.Combine(movedFolder,"resaved.ktas");movedProject.Save(resaved);
-        Check(TasProject.Load(resaved).EmbeddedRecording!.Initial["marisaA.dat"].SequenceEqual(movedProject.EmbeddedRecording.Initial["marisaA.dat"]),"resaving portable draft preserves embedded initial save");
-        string plan=Path.Combine(output,"layout.bin");loaded.WriteEditPlan(plan);
-        using(var reader=new BinaryReader(File.OpenRead(plan)))Check(System.Text.Encoding.ASCII.GetString(reader.ReadBytes(8))=="KTASED02"&&reader.ReadInt32()==182&&reader.ReadInt32()==2&&reader.ReadInt32()==180,"variable-length plan encodes first edit and original length");
-        project.Undo();project.Undo();Check(project.FrameCount==180&&project.EditCount==0&&project.InvalidFrom is null,"mixed structural and input undo returns exact original intent");
-        bool rejected=false;try{project.DeleteFrames(0,180);}catch(ArgumentOutOfRangeException){rejected=true;}Check(rejected,"cannot delete every frame");
-        string legacy=Path.Combine(output,"legacy-draft.ktas");
-        using(var zip=ZipFile.Open(legacy,ZipArchiveMode.Create)){
-            using(var raw=zip.CreateEntry("source.krec").Open())raw.Write(replay.Bytes.Span);
-            using var json=zip.CreateEntry("project.json").Open();JsonSerializer.Serialize(json,new ProjectManifest(1,"legacy.krec",[new(2,4,false)]),RecordingJsonContext.Default.ProjectManifest);
+
+internal static class FrameEditingChecks
+{
+    private static void Check(bool condition, string name)
+    {
+        if (!condition)
+            throw new Exception(name);
+
+        Console.WriteLine("PASS " + name);
+    }
+
+    public static void Run(Replay replay, string output)
+    {
+        var project = new TasProject(replay, "layout.krec");
+        project.SetRange(5, 9, 4, false);
+        project.InsertFrames(2, 2);
+        Check(
+            project.FrameCount == 182 && project.SourceFrame(2) == -1 && project.SourceFrame(4) == 2 &&
+            !project.Down(7, 4), "insert preserves shifted input edits and original mapping");
+        var before = Enumerable.Range(0, project.FrameCount).Select(project.Mask).ToArray();
+        project.BeginPaint();
+        project.SetRange(2, 5, 5, true);
+        project.SetRange(4, 7, 5, true);
+        project.EndPaint();
+        project.Undo();
+        Check(Enumerable.Range(0, project.FrameCount).Select(project.Mask).SequenceEqual(before),
+            "overlapping drag painting undoes as one complete stroke");
+        project.Redo();
+        Check(project.Down(2, 5) && project.Down(7, 5), "drag stroke redo restores full span");
+        project.Undo();
+        project.DeleteFrames(3, 4);
+        Check(project.FrameCount == 178, "delete changes draft length");
+        project.Undo();
+        Check(Enumerable.Range(0, project.FrameCount).Select(project.Mask).SequenceEqual(before),
+            "delete undo restores masks and shifted source frames");
+        var draft = Path.Combine(output, "layout.ktas");
+        project.Save(draft);
+        var loaded = TasProject.Load(draft);
+        Check(
+            loaded.FrameCount == 182 && loaded.SourceFrame(2) == -1 && loaded.Mask(7) == project.Mask(7) &&
+            loaded.Source.Bytes.Span.SequenceEqual(replay.Bytes.Span),
+            "layout draft roundtrip preserves immutable original");
+        Check(loaded.EmbeddedRecording is not null && loaded.EmbeddedRecording.Initial.Count == 0,
+            "empty initial state is explicitly embedded in draft");
+        var draftInitial = Path.Combine(output, "draft-initial");
+        Directory.CreateDirectory(draftInitial);
+        File.WriteAllText(Path.Combine(draftInitial, "marisaA.dat"), "draft-save");
+        var portable = Path.Combine(output, "portable-draft.ktas");
+        loaded.Save(portable, draftInitial, [new(181, "新增帧重点")]);
+        var movedFolder = Path.Combine(output, "isolated-draft");
+        Directory.CreateDirectory(movedFolder);
+        var moved = Path.Combine(movedFolder, "moved.ktas");
+        File.Move(portable, moved);
+        var movedProject = TasProject.Load(moved);
+        Check(
+            System.Text.Encoding.UTF8.GetString(movedProject.EmbeddedRecording!.Initial["marisaA.dat"]) ==
+            "draft-save" && movedProject.EmbeddedBookmarks!.Single().Frame == 181,
+            "moved draft carries initial save and bookmark beyond source EOF");
+        var resaved = Path.Combine(movedFolder, "resaved.ktas");
+        movedProject.Save(resaved);
+        Check(
+            TasProject.Load(resaved).EmbeddedRecording!.Initial["marisaA.dat"]
+                .SequenceEqual(movedProject.EmbeddedRecording.Initial["marisaA.dat"]),
+            "resaving portable draft preserves embedded initial save");
+        var plan = Path.Combine(output, "layout.bin");
+        loaded.WriteEditPlan(plan);
+        using (var reader = new BinaryReader(File.OpenRead(plan)))
+            Check(
+                System.Text.Encoding.ASCII.GetString(reader.ReadBytes(8)) == "KTASED02" && reader.ReadInt32() == 182 &&
+                reader.ReadInt32() == 2 && reader.ReadInt32() == 180,
+                "variable-length plan encodes first edit and original length");
+
+        project.Undo();
+        project.Undo();
+        Check(project is { FrameCount: 180, EditCount: 0, InvalidFrom: null },
+            "mixed structural and input undo returns exact original intent");
+        var rejected = false;
+        try
+        {
+            project.DeleteFrames(0, 180);
         }
-        rejected=false;try{TasProject.Load(legacy);}catch(InvalidDataException){rejected=true;}Check(rejected,"draft without embedded initial state is rejected");
-        var invalid=Path.Combine(output,"invalid-layout.ktas");File.Copy(draft,invalid);
-        using(var zip=ZipFile.Open(invalid,ZipArchiveMode.Update)){
-            zip.GetEntry("project.json")!.Delete();using var json=zip.CreateEntry("project.json").Open();
-            JsonSerializer.Serialize(json,new ProjectManifest(3,"invalid.krec",[],[new(2,0),new(1,0)],[]),RecordingJsonContext.Default.ProjectManifest);
+        catch (ArgumentOutOfRangeException)
+        {
+            rejected = true;
         }
-        rejected=false;try{TasProject.Load(invalid);}catch(InvalidDataException){rejected=true;}Check(rejected,"non-monotonic source mappings rejected");
+
+        Check(rejected, "cannot delete every frame");
+        var legacy = Path.Combine(output, "legacy-draft.ktas");
+        using (var zip = ZipFile.Open(legacy, ZipArchiveMode.Create))
+        {
+            using (var raw = zip.CreateEntry("source.krec").Open())
+                raw.Write(replay.Bytes.Span);
+
+            using var json = zip.CreateEntry("project.json").Open();
+            JsonSerializer.Serialize(json, new ProjectManifest(1, "legacy.krec", [new(2, 4, false)]),
+                RecordingJsonContext.Default.ProjectManifest);
+        }
+
+        rejected = false;
+        try
+        {
+            TasProject.Load(legacy);
+        }
+        catch (InvalidDataException)
+        {
+            rejected = true;
+        }
+
+        Check(rejected, "draft without embedded initial state is rejected");
+        var invalid = Path.Combine(output, "invalid-layout.ktas");
+        File.Copy(draft, invalid);
+        using (var zip = ZipFile.Open(invalid, ZipArchiveMode.Update))
+        {
+            zip.GetEntry("project.json")!.Delete();
+            using var json = zip.CreateEntry("project.json").Open();
+            JsonSerializer.Serialize(json, new ProjectManifest(3, "invalid.krec", [], [new(2, 0), new(1, 0)], []),
+                RecordingJsonContext.Default.ProjectManifest);
+        }
+
+        rejected = false;
+        try
+        {
+            TasProject.Load(invalid);
+        }
+        catch (InvalidDataException)
+        {
+            rejected = true;
+        }
+
+        Check(rejected, "non-monotonic source mappings rejected");
     }
 }
