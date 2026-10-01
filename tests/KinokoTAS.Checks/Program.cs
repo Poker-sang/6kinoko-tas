@@ -98,6 +98,17 @@ internal static class Program {
    window.PauseOnDeactivateAsync().GetAwaiter().GetResult();
    Check(!Directory.GetFiles(uiSession.SessionDirectory,"command.txt",SearchOption.AllDirectories).Any(),"startup focus loss does not pause before first frame");
    while(!connect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}connect.GetAwaiter().GetResult();
+   if(OperatingSystem.IsWindows()) {
+    var statePath=Directory.GetFiles(uiSession.SessionDirectory,"state.txt",SearchOption.AllDirectories).Single();
+    var heldState=new FileStream(statePath,FileMode.Open,FileAccess.Read,FileShare.None);
+    var releaseState=Task.Run(()=>{Thread.Sleep(10);heldState.Dispose();});
+    Check(uiSession.ReadState() is not null,"transient mailbox sharing conflict retries successfully");
+    releaseState.GetAwaiter().GetResult();
+    using(var blockedState=new FileStream(statePath,FileMode.Open,FileAccess.Read,FileShare.None)) {
+     bool reported=false;try{uiSession.ReadState();}catch(IOException){reported=true;}
+     Check(reported,"persistent mailbox access conflict remains visible after bounded retries");
+    }
+   }
    var previewDeadline=DateTime.UtcNow.AddSeconds(10);
    while(window.FindControl<Image>("GameImage")!.Source is null && DateTime.UtcNow<previewDeadline){window.RefreshGameView();Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}
    Check(window.FindControl<Image>("GameImage")!.Source is not null,"embedded preview arrives in UI");

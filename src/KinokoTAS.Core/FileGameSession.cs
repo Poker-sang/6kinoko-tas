@@ -110,7 +110,19 @@ public sealed class FileGameSession : IGameSession {
         }
         catch{await DisposeAsync();throw;}
     }
-    static byte[] ReadShared(string path) {using var s=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);using var m=new MemoryStream();s.CopyTo(m);return m.ToArray();}
+    static bool MailboxBusy(Exception error) => OperatingSystem.IsWindows()
+        && (error.HResult&0xffff) is 5 or 32 or 33;
+    static byte[] ReadShared(string path) {
+        // Windows can reject opens while a shared file is delete-pending.
+        // Retry only the known access/sharing errors, for at most 30 ms;
+        // persistent ACL failures and unrelated I/O errors still reach the caller.
+        for(int attempt=0;;attempt++)try {
+            using var s=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);
+            using var m=new MemoryStream();s.CopyTo(m);return m.ToArray();
+        }
+        catch(IOException ex)when(attempt<15 && MailboxBusy(ex)){Thread.Sleep(2);}
+        catch(UnauthorizedAccessException ex)when(attempt<15 && MailboxBusy(ex)){Thread.Sleep(2);}
+    }
     public SessionState? ReadState() {
         if(File.Exists(Path.Combine(bridge,"error.txt")))throw new InvalidDataException(System.Text.Encoding.UTF8.GetString(ReadShared(Path.Combine(bridge,"error.txt"))));
         try {
