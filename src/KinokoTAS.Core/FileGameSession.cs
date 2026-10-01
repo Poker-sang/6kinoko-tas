@@ -171,8 +171,9 @@ public sealed class FileGameSession : IGameSession {
         return State(await SendAsync("target",s.Completed+1,x=>x.Completed>=s.Completed+1&&x.Phase.EndsWith("paused"),ct),identity);
     }
     async Task EngineSpeedAsync(double speed,CancellationToken ct) {
-        if(speed is not (0.25 or 0.5 or 1 or 2 or 4))throw new ArgumentOutOfRangeException(nameof(speed));
+        if(speed is not (0.25 or 0.5 or 0.75 or 1 or 2 or 4))throw new ArgumentOutOfRangeException(nameof(speed));
         if(!Supports("pacing-v1"))throw new NotSupportedException("游戏版本不支持倍速，请更新游戏程序并重新打开录制。");
+        if(speed==0.75 && !Supports("pacing-075-v1"))throw new NotSupportedException("游戏版本不支持 0.75×，请更换新版游戏程序并重新启动会话。");
         await SendAsync("speed",(long)(speed*100),state=>true,ct);
     }
     public async Task SetSpeedAsync(double speed,CancellationToken ct=default) {

@@ -164,7 +164,11 @@ internal static class Program {
    window.InsertEmptyFrames(3,1);bool blocked=false;
    try{window.ReplayAllAsync().GetAwaiter().GetResult();}catch(InvalidOperationException){blocked=true;}
    Check(blocked&&editingSession.ReadState()!.Completed==1,"unapplied layout cannot play the old source under shifted frame numbers");window.Project!.Undo();
-   window.FindControl<ComboBox>("SpeedPicker")!.SelectedIndex=4;
+   window.FindControl<ComboBox>("SpeedPicker")!.SelectedIndex=2;
+   var fractionalDeadline=DateTime.UtcNow.AddSeconds(5);
+   while(editingSession.PlaybackSpeed!=0.75&&DateTime.UtcNow<fractionalDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(editingSession.PlaybackSpeed==0.75,"0.75x picker forwards correct speed to engine");
+   window.FindControl<ComboBox>("SpeedPicker")!.SelectedIndex=5;
    var speedDeadline=DateTime.UtcNow.AddSeconds(5);
    while(editingSession.PlaybackSpeed!=4&&DateTime.UtcNow<speedDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
    Check(editingSession.PlaybackSpeed==4,"speed picker controls connected engine");
@@ -357,7 +361,7 @@ internal static class Program {
   uint[]? plan=null;int first=-1;
   var planPath=Path.Combine(bridge,"edit.bin");
   if(File.Exists(planPath)){using var reader=new BinaryReader(File.OpenRead(planPath));string version=System.Text.Encoding.ASCII.GetString(reader.ReadBytes(8));int length=reader.ReadInt32();first=reader.ReadInt32();if(version=="KTASED02")reader.ReadInt32();plan=new uint[length];for(int i=0;i<length;i++)plan[i]=reader.ReadUInt32();total=length;}
-  if(!File.Exists(Path.Combine(Arg("--save-dir"),"no-edits.dat")))File.WriteAllText(Path.Combine(bridge,"capabilities.txt"),"KTAS1 edits-v1 edits-v2 pacing-v1 snapshot-v1 focus-v1"+(File.Exists(Path.Combine(Arg("--save-dir"),"legacy-pacing.dat"))?"":" seek-fast-v1"));
+  if(!File.Exists(Path.Combine(Arg("--save-dir"),"no-edits.dat")))File.WriteAllText(Path.Combine(bridge,"capabilities.txt"),"KTAS1 edits-v1 edits-v2 pacing-v1 pacing-075-v1 snapshot-v1 focus-v1"+(File.Exists(Path.Combine(Arg("--save-dir"),"legacy-pacing.dat"))?"":" seek-fast-v1"));
   var recorded=new List<uint>();
   byte[] Current()=>Fixture((int)count,recorded.ToArray());
   for(int tick=0;tick<15000;tick++) {

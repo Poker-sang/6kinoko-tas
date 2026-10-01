@@ -3,7 +3,7 @@ using Avalonia.Interactivity;
 using KinokoTAS.Core;
 namespace KinokoTAS.App;
 public partial class MainWindow {
-    static readonly double[] Speeds=[0.25,0.5,1,2,4];
+    static readonly double[] Speeds=[0.25,0.5,0.75,1,2,4];
     TasProject? paintingProject,layoutProject;
     bool paintingDown;
     bool changingSpeed;
