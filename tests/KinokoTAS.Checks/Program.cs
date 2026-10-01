@@ -328,6 +328,31 @@ internal static class Program {
    Check(File.ReadAllBytes(replayPath).SequenceEqual(data),"game shortcut takeover leaves original recording unchanged");
    var shortcutStop=shortcutWindow.StopGameSessionAsync();
    while(!shortcutStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}shortcutStop.GetAwaiter().GetResult();shortcutWindow.Hide();
+   var saveFailureWindow=new MainWindow();saveFailureWindow.Show();
+   var saveFailureOpen=saveFailureWindow.OpenPathAsync(replayPath);
+   while(!saveFailureOpen.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}saveFailureOpen.GetAwaiter().GetResult();
+   var saveFailureSession=new FileGameSession(fakeExe,Path.Combine(output,"save-failure-session"),replayPath,Path.Combine(output,"initial"),new string('a',64));
+   var saveFailureConnect=saveFailureWindow.AttachGameSessionAsync(saveFailureSession);
+   while(!saveFailureConnect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}saveFailureConnect.GetAwaiter().GetResult();
+   var failFlag=Path.Combine(saveFailureSession.SessionDirectory,"initial","fail-verification.dat");File.WriteAllText(failFlag,"fixture");
+   saveFailureWindow.Project!.SetRange(1,1,4,false);
+   var retainedDraft=saveFailureWindow.Project;
+   var protectedSave=Path.Combine(output,"protected-existing-save.krec");File.Copy(savePath,protectedSave);
+   var protectedBytes=File.ReadAllBytes(protectedSave);
+   var failSave=saveFailureWindow.SaveRecordingToAsync(protectedSave);
+   while(!failSave.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   bool saveRejected=false;try{failSave.GetAwaiter().GetResult();}catch(InvalidDataException){saveRejected=true;}
+   Check(saveRejected && File.ReadAllBytes(protectedSave).SequenceEqual(protectedBytes),"failed apply-and-save preserves existing krec exactly");
+   Check(ReferenceEquals(retainedDraft,saveFailureWindow.Project) && saveFailureWindow.HasUnsavedChanges && saveFailureWindow.Title!.Contains(" *") && saveFailureSession.IsRunning,"failed save retains draft, live session and unsaved star");
+   File.Delete(failFlag);
+   var retrySave=saveFailureWindow.SaveRecordingToAsync(protectedSave);
+   while(!retrySave.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}retrySave.GetAwaiter().GetResult();
+   Check(RecordingPackage.Load(protectedSave).Replay.Held(1,4)==0 && !saveFailureWindow.HasUnsavedChanges,"retry applies pending edits and saves playable krec");
+   saveFailureWindow.Project!.SetRange(2,2,4,false);saveFailureWindow.Close();ClickSaveChoice(saveFailureWindow,"PART_PrimaryButton");
+   closeDeadline=DateTime.UtcNow.AddSeconds(20);
+   while(saveFailureWindow.IsVisible && DateTime.UtcNow<closeDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
+   Check(!saveFailureWindow.IsVisible && RecordingPackage.Load(protectedSave).Replay.Held(2,4)==0,"close-save applies pending edits to krec and exits instead of exporting ktas");
+   Check(File.ReadAllBytes(replayPath).SequenceEqual(data),"all apply-and-save checks leave original fixture unchanged");
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
   }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
  }

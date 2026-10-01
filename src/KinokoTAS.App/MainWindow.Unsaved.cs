@@ -5,8 +5,18 @@ public partial class MainWindow {
     bool closePending,documentUnsaved;
     long saveRevision,savedLiveFrames;
     string? savedLiveBranch;
-    public bool HasUnsavedChanges=>Project?.InvalidFrom is not null || dirty || documentUnsaved ||
-        (game?.IsLive==true && (savedLiveBranch!=game.BranchPath || savedLiveFrames!=(game.ReadState()?.Completed??0)));
+    public bool HasUnsavedChanges {
+        get {
+            if(Project?.InvalidFrom is not null || dirty || documentUnsaved)return true;
+            if(game?.IsLive!=true)return false;
+            if(savedLiveBranch!=game.BranchPath)return true;
+            // An unreadable progress mailbox must not mark the recording clean
+            // or throw out of the UI timer while updating the title.
+            try {var state=game.ReadState();return state is null || savedLiveFrames!=state.Completed;}
+            catch(IOException){return true;}
+            catch(UnauthorizedAccessException){return true;}
+        }
+    }
     async Task<bool> ConfirmSaveChangesAsync() {
         if(dialogHost?.IsOpen==true)return false;
         if(game?.IsRunning==true){gameKeys.Clear();game.Input(0);await game.PauseAsync(default);}
