@@ -298,6 +298,26 @@ internal static class Program {
    closeDeadline=DateTime.UtcNow.AddSeconds(5);
    while(discardWindow.IsVisible && DateTime.UtcNow<closeDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
    Check(!discardWindow.IsVisible && File.ReadAllBytes(savePath).SequenceEqual(packageBeforeDiscard),"discard on exit leaves saved package untouched");
+   var shortcutWindow=new MainWindow();shortcutWindow.Show();
+   var shortcutSession=new FileGameSession(fakeExe,Path.Combine(output,"shortcut-session"),replayPath,Path.Combine(output,"initial"),new string('a',64),true);
+   var shortcutConnect=shortcutWindow.AttachGameSessionAsync(shortcutSession);
+   while(!shortcutConnect.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}shortcutConnect.GetAwaiter().GetResult();
+   var shortcutBridge=Directory.GetFiles(shortcutSession.SessionDirectory,"state.txt",SearchOption.AllDirectories).Single();
+   shortcutBridge=Path.GetDirectoryName(shortcutBridge)!;
+   File.WriteAllText(Path.Combine(shortcutBridge,"shortcut-1.txt"),"KTASKEY1 1 toggle-recording\n");
+   var shortcutTakeover=shortcutWindow.ProcessGameRequestsAsync();
+   while(!shortcutTakeover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}shortcutTakeover.GetAwaiter().GetResult();
+   Check(shortcutSession.IsLive && shortcutSession.ReadState()?.Phase=="live","game F8 request invokes editor takeover and resumes recording");
+   Check(!File.Exists(Path.Combine(shortcutBridge,"shortcut-1.txt")),"game shortcut is consumed once");
+   var noRepeat=shortcutWindow.ProcessGameRequestsAsync();noRepeat.GetAwaiter().GetResult();
+   Check(shortcutSession.IsLive,"polling consumed shortcut does not toggle twice");
+   File.WriteAllText(Path.Combine(shortcutBridge,"shortcut-2.txt"),"KTASKEY1 2 toggle-recording\n");
+   var shortcutPlayback=shortcutWindow.ProcessGameRequestsAsync();
+   while(!shortcutPlayback.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}shortcutPlayback.GetAwaiter().GetResult();
+   Check(!shortcutSession.IsLive && shortcutSession.ReadState()?.Phase=="paused" && shortcutSession.LastRecoveryPath is not null,"game F8 seals recording and returns to playback with recovery retained");
+   Check(File.ReadAllBytes(replayPath).SequenceEqual(bytes),"game shortcut takeover leaves original recording unchanged");
+   var shortcutStop=shortcutWindow.StopGameSessionAsync();
+   while(!shortcutStop.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}shortcutStop.GetAwaiter().GetResult();shortcutWindow.Hide();
    Console.WriteLine("All checks passed. Artifacts: "+output);return 0;
   }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
  }

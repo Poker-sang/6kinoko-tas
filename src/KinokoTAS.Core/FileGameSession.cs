@@ -24,6 +24,7 @@ public sealed class FileGameSession : IGameSession {
     Process? process;
     string run="",bridge="";
     long sequence,inputSequence,lastCompleted;
+    readonly Queue<long> recordingToggleRequests=[];
     public bool IsRunning=>process is not null && !process.HasExited;
     public string BranchPath {get;private set;}="";
     public string SessionDirectory=>root;
@@ -224,6 +225,22 @@ public sealed class FileGameSession : IGameSession {
     public async Task<bool> FocusGameAsync(CancellationToken ct=default) {
         if(!ExternalWindow || !Supports("focus-v1"))return false;
         await SendAsync("focus",0,state=>true,ct);return true;
+    }
+    public bool TakeRecordingToggleRequest() {
+        if(!ExternalWindow || !IsRunning)return false;
+        var requests=Directory.EnumerateFiles(bridge,"shortcut-*.txt")
+            .Select(path=>(Path:path,Id:long.TryParse(Path.GetFileNameWithoutExtension(path).AsSpan(9),out var id)?id:0))
+            .Where(item=>item.Id>0).OrderBy(item=>item.Id);
+        foreach(var request in requests) {
+            string[] words;
+            try {words=System.Text.Encoding.UTF8.GetString(ReadShared(request.Path)).Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries);}
+            catch(FileNotFoundException){continue;}
+            if(words.Length!=3 || words[0]!="KTASKEY1" || words[1]!=request.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) || words[2]!="toggle-recording")
+                throw new InvalidDataException("游戏快捷键请求无效。");
+            File.Delete(request.Path);recordingToggleRequests.Enqueue(request.Id);
+        }
+        if(recordingToggleRequests.Count==0)return false;
+        recordingToggleRequests.Dequeue();return true;
     }
     public async Task<string> StopAsync() {
         if(process is null)return BranchPath;

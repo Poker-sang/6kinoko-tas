@@ -33,7 +33,7 @@ public partial class MainWindow {
     async void ChangeGameClick(object? sender,RoutedEventArgs e)=>await Operate(async()=>{gameExe=null;await PickGame();});
     void InitializeGamePanel() {
         try {if(File.Exists(SettingsPath)){using var settings=JsonDocument.Parse(File.ReadAllText(SettingsPath));gameExe=settings.RootElement.GetProperty("GameExe").GetString();EmbeddedOption.IsChecked=settings.RootElement.GetProperty("Embedded").GetBoolean();}}catch{gameExe=null;}
-        gameTimer.Tick+=(_,_)=>RefreshGameView();gameTimer.Start();
+        gameTimer.Tick+=async (_,_)=>{RefreshGameView();await ProcessGameRequestsAsync();};gameTimer.Start();
         Deactivated+=async (_,_)=>await PauseOnDeactivateAsync();
         Closed+=(_,_)=>{gameTimer.Stop();bitmap?.Dispose();};
     }
@@ -48,6 +48,14 @@ public partial class MainWindow {
         if(gameCommand)return;gameCommand=true;
         try{operationError=null;await action();}catch(OperationCanceledException){operationError="操作已取消，原录制与草稿保留。";GameStatus.Text=operationError;}catch(Exception ex){operationError="操作失败："+ex.Message;GameStatus.Text=operationError;}
         finally{gameCommand=false;RefreshGameView();}
+    }
+    public async Task ProcessGameRequestsAsync() {
+        // Leave queued requests untouched during dialogs, seeks and save/edit
+        // transactions. Operate guards reentrant timer ticks while awaiting IPC.
+        if(gameCommand || busy || seeking is not null || dialogHost?.IsOpen==true)return;
+        try {
+            if(game?.TakeRecordingToggleRequest()==true)await Operate(ToggleRecordingAsync);
+        }catch(Exception ex){operationError="游戏快捷键失败："+ex.Message;GameStatus.Text=operationError;}
     }
     async Task<string?> PickGame() {
         if(gameExe is not null && File.Exists(gameExe))return gameExe;
