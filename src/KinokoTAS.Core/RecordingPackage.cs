@@ -8,7 +8,7 @@ public sealed record RecordingPackage(Replay Replay,FrameBookmark[] Bookmarks,Di
     static bool SaveName(string name)=>name.Length>0 && name.Length<128 && !name.Contains('/') && !name.Contains('\\') && !name.Contains(':') && name!="." && name!=".." && !name.StartsWith("6kinoko_",StringComparison.OrdinalIgnoreCase) && (name.EndsWith(".dat",StringComparison.OrdinalIgnoreCase)||name=="input-actions.cfg");
     public static bool IsPackage(string path){using var s=File.OpenRead(path);return s.ReadByte()==80 && s.ReadByte()==75;}
     public static RecordingPackage Load(string path) {
-        using var stream=File.OpenRead(path);return Load(stream);
+        using var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);return Load(stream);
     }
     public static RecordingPackage Load(Stream stream) {
         using var zip=new ZipArchive(stream,ZipArchiveMode.Read,true);

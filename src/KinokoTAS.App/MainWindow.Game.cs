@@ -29,10 +29,10 @@ public partial class MainWindow {
             return Path.Combine(current,"settings.json");
         }
     }
-    void SaveSettings(){Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);File.WriteAllText(SettingsPath,JsonSerializer.Serialize(new EditorSettings(gameExe,EmbeddedOption.IsChecked==true),SettingsJsonContext.Default.EditorSettings));}
+    void SaveSettings(){Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);File.WriteAllText(SettingsPath,JsonSerializer.Serialize(new EditorSettings(gameExe,EmbeddedOption.IsChecked==true,ffmpegExe),SettingsJsonContext.Default.EditorSettings));}
     async void ChangeGameClick(object? sender,RoutedEventArgs e)=>await Operate(async()=>{gameExe=null;await PickGame();});
     void InitializeGamePanel() {
-        try {if(File.Exists(SettingsPath)){using var settings=JsonDocument.Parse(File.ReadAllText(SettingsPath));gameExe=settings.RootElement.GetProperty("GameExe").GetString();EmbeddedOption.IsChecked=settings.RootElement.GetProperty("Embedded").GetBoolean();}}catch{gameExe=null;}
+        try {if(File.Exists(SettingsPath)){using var settings=JsonDocument.Parse(File.ReadAllText(SettingsPath));gameExe=settings.RootElement.GetProperty("GameExe").GetString();EmbeddedOption.IsChecked=settings.RootElement.GetProperty("Embedded").GetBoolean();if(settings.RootElement.TryGetProperty("FfmpegExe",out var encoder))ffmpegExe=encoder.GetString();}}catch{gameExe=null;}
         gameTimer.Tick+=async (_,_)=>{RefreshGameView();await ProcessGameRequestsAsync();};gameTimer.Start();
         Deactivated+=async (_,_)=>await PauseOnDeactivateAsync();
         Closed+=(_,_)=>{gameTimer.Stop();bitmap?.Dispose();};

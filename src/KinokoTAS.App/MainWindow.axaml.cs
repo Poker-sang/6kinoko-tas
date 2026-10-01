@@ -12,6 +12,7 @@ public partial class MainWindow : Window {
         Timeline.Scrolled+=delta=>{FollowLatest.IsChecked=false;FrameScroll.Value=Math.Clamp(FrameScroll.Value+delta,0,FrameScroll.Maximum);};
         Closing+=async (_,e)=> {
             if(allowClose)return;
+            if(videoExport is not null){e.Cancel=true;videoExport.Cancel();StatusLabel.Text="正在取消视频导出，请稍后再次关闭。";return;}
             if(closePending){e.Cancel=true;return;}
             if(gameCommand||busy){e.Cancel=true;seeking?.Cancel();StatusLabel.Text="正在结束当前操作，请稍后再次关闭。";return;}
             e.Cancel=true;

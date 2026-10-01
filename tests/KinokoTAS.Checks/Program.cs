@@ -23,6 +23,7 @@ internal static class Program {
   w.Write((byte)0);w.Write((ulong)count);w.Write(chain);return s.ToArray();
  }
  [STAThread] static int Main(string[] args) {
+  if(args.Contains("-pixel_format")){using var input=Console.OpenStandardInput();using var output=File.Create(args[^1]);input.CopyTo(output);return 0;}
   if(args.Contains("--tas-dir"))return FakeEngine(args);
   try {
    string output=Path.GetFullPath(args.Length>0?args[0]:"artifacts/checks-"+DateTime.Now.ToString("yyyyMMdd-HHmmss"));
@@ -44,6 +45,7 @@ internal static class Program {
    var liveReader=new LiveTimeline();liveReader.Read(liveFile,2);Check(liveReader.Masks.Count==1,"live reader ignores incomplete record");
    File.WriteAllBytes(liveFile,data[..(Replay.HeaderSize+2*Replay.RecordSize)]);liveReader.Read(liveFile,2);Check(liveReader.Masks.Count==2 && (liveReader.Masks[1]&(1u<<4))!=0,"live reader incrementally appends validated input");
    string fakeExe=ProtocolCheck(output,replayPath).GetAwaiter().GetResult();
+   VideoChecks(fakeExe,output,replayPath).GetAwaiter().GetResult();
    var marks=new[]{new FrameBookmark(2,"Boss 前"),new FrameBookmark(10,"重点")};
    var bundle=RecordingLibrary.SaveBundle(output,replay,Path.Combine(output,"initial"),marks);
    Check(Replay.Load(bundle).Bytes.Span.SequenceEqual(data),"saved bundle preserves exact replay");
@@ -431,6 +433,17 @@ internal static class Program {
    AtomicFile.Write(Path.Combine(bridge,"image.rgba"),s=>{using var w=new BinaryWriter(s,System.Text.Encoding.UTF8,true);w.Write("KTASIMG1"u8);w.Write(count);w.Write(1);w.Write(1);w.Write(new byte[]{10,20,30,255});});}catch(IOException){}catch(UnauthorizedAccessException){}
    Thread.Sleep(2);
   }return 2;
+ }
+ sealed class ExportProgress(Action<VideoExportProgress> report):IProgress<VideoExportProgress>{public void Report(VideoExportProgress value)=>report(value);}
+ static async Task VideoChecks(string exe,string output,string replay) {
+  FileGameSession Session(string name)=>new(exe,Path.Combine(output,name),replay,Path.Combine(output,"initial"),new string('a',64),false,true);
+  var frames=new List<int>();var video=Path.Combine(output,"fake-video.mp4");
+  var result=await VideoExporter.ExportAsync(Session("video-session"),exe,video,2,4,new ExportProgress(p=>{if(p.Completed>0)frames.Add(p.Frame);}));
+  Check(result.Frames==3&&File.ReadAllBytes(video).Length==12&&frames.SequenceEqual(new[]{2,3,4}),"video export inclusive range and exact frame delivery (fake encoder)");
+  var cancelled=Path.Combine(output,"cancel-video.mp4");File.WriteAllText(cancelled,"keep");using var cancel=new CancellationTokenSource();
+  bool stopped=false;try{await VideoExporter.ExportAsync(Session("cancel-video-session"),exe,cancelled,0,20,new ExportProgress(p=>{if(p.Completed==1)cancel.Cancel();}),cancel.Token);}catch(OperationCanceledException){stopped=true;}
+  Check(stopped&&File.ReadAllText(cancelled)=="keep","cancelled export preserves existing video");
+  string? encoder=VideoExporter.FindEncoder();if(encoder is not null){var real=await VideoExporter.ExportAsync(Session("real-video-session"),encoder,Path.Combine(output,"real-video.mp4"),0,4);Check(real.Frames==5&&new FileInfo(real.Path).Length>100,"real FFmpeg MP4 encoding with synthetic game frames");}
  }
  static async Task<string> ProtocolCheck(string output,string replay) {
   var fake=Path.Combine(output,"fake-engine");Directory.CreateDirectory(fake);

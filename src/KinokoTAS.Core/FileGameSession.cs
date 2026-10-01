@@ -33,10 +33,12 @@ public sealed class FileGameSession : IGameSession {
     public FileGameSession ReopenBranch()=>new(executable,root+"-return-"+Guid.NewGuid().ToString("N")[..8],BranchPath,Path.Combine(root,"initial"),identity,ExternalWindow);
     public bool IsLive {get;private set;}
     public bool ExternalWindow {get;}
+    public bool Silent {get;}
     public string EngineHash {get;}
     public static string HashFile(string path){using var s=File.OpenRead(path);return Convert.ToHexString(SHA256.HashData(s)).ToLowerInvariant();}
-    public FileGameSession(string exe,string sessionRoot,string? replayPath,string initialDirectory,string replayIdentity,bool externalWindow=false) {
+    public FileGameSession(string exe,string sessionRoot,string? replayPath,string initialDirectory,string replayIdentity,bool externalWindow=false,bool silent=false) {
         ExternalWindow=externalWindow;
+        Silent=silent;
         executable=Path.GetFullPath(exe);root=Path.GetFullPath(sessionRoot);identity=replayIdentity;
         if(Directory.Exists(root))throw new IOException("会话目录已存在。");
         foreach(var name in new[]{"6kinoko_a.dat","6kinoko_b.dat","6kinoko_c.dat"})if(!File.Exists(Path.Combine(Path.GetDirectoryName(executable)!,name)))throw new IOException("游戏程序旁缺少 "+name);
@@ -101,6 +103,7 @@ public sealed class FileGameSession : IGameSession {
         var start=new ProcessStartInfo(executable){UseShellExecute=false,WorkingDirectory=Path.GetDirectoryName(executable)!};
         foreach(var arg in new[]{"--save-dir",saves,source is null?"--record":"--replay",source??BranchPath,"--replay-status",Path.Combine(run,"replay-status.txt"),"--replay-identity",identity,"--tas-dir",bridge,"--tas-output",BranchPath})start.ArgumentList.Add(arg);
         if(ExternalWindow)start.ArgumentList.Add("--tas-window");
+        if(Silent)start.Environment["SDL_AUDIO_DRIVER"]="dummy";
         start.Environment.Remove("KINOKO_REPLAY_MODE");start.Environment["KINOKO_TRACE"]="0";
         process=Process.Start(start)??throw new IOException("游戏进程启动失败。");
         try {
@@ -142,6 +145,20 @@ public sealed class FileGameSession : IGameSession {
             if(w<=0||h<=0||w>4096||h>4096||data.Length!=24+(long)w*h*4)return null;
             return new(count,w,h,data[24..]);
         }catch(IOException){return null;}
+    }
+    public async Task<PreviewFrame> ReadVideoFrameAsync(int frame,CancellationToken ct=default) {
+        if(IsLive)throw new InvalidOperationException("视频导出必须使用独立回放会话。");
+        await SeekAsync(frame,ct);
+        var watch=Stopwatch.StartNew();
+        while(watch.Elapsed<TimeSpan.FromSeconds(30)) {
+            ct.ThrowIfCancellationRequested();
+            var preview=ReadPreview();
+            if(preview?.Completed==frame+1)return preview;
+            if(preview?.Completed>frame+1)throw new InvalidDataException("导出画面与逻辑帧不一致。");
+            if(!IsRunning)throw new IOException("导出用游戏进程已退出。");
+            await Task.Delay(5,ct);
+        }
+        throw new TimeoutException($"未取得第 {frame} 帧的画面。");
     }
     static void Mailbox(string path,Action<Stream> write) {
         for(int attempt=0;;attempt++)try{AtomicFile.Write(path,write);return;}
