@@ -171,6 +171,9 @@ internal static class Program {
    window.Project.SetRange(0,0,4,false);
    timeline.SelectedFrame=7;window.RefreshGameView();
    Check(window.FindControl<Control>("ApplyEditsButton")!.IsEnabled,"apply command enabled for pending inputs");
+   Check(window.FindControl<CommandBar>("TimelineCommands")!.PrimaryCommands.Contains(window.FindControl<CommandBarButton>("ApplyEditsButton")!),"apply command is directly on timeline toolbar");
+   Check(window.Title!.Contains(" *") && window.FindControl<TextBlock>("EditWorkflowLabel")!.Text!.Contains("待应用"),"pending timeline edits show unsaved star and explicit workflow state");
+   Check(window.FindControl<CommandBarButton>("SaveRecordingButton")!.Label=="应用并保存录制","save clearly includes applying pending edits");
    var pendingApply=window.Project;
    window.FindControl<Control>("ApplyEditsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
    var applyDeadline=DateTime.UtcNow.AddSeconds(20);
@@ -183,12 +186,14 @@ internal static class Program {
    Check(window.Project.Source.Held(0,4)==1 && window.Project.EditCount==1,"restore recovers original and retained draft");
    window.Project.Undo();
    window.Project.SetRange(1,1,4,false);timeline.SelectedFrame=1;window.RefreshGameView();
-   Check(window.FindControl<Control>("RestartGameButton")!.IsEnabled,"restart enabled for pending edits while game runs");
-   var pendingRestart=window.Project;
-   window.FindControl<Control>("RestartGameButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-   applyDeadline=DateTime.UtcNow.AddSeconds(20);
-   while(ReferenceEquals(window.Project,pendingRestart) && DateTime.UtcNow<applyDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}
-   Check(window.Project.Source.Held(1,4)==0 && window.Project.InvalidFrom is null && !window.Project.IsEdited(1,4),"restart applies pending inputs and clears their yellow markers");
+   Check(!window.FindControl<Control>("RestartGameButton")!.IsEnabled,"game restart no longer doubles as timeline apply");
+   var autoSavePath=Path.Combine(output,"auto-applied-save.krec");
+   var autoApplySave=window.SaveRecordingToAsync(autoSavePath);
+   while(!autoApplySave.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}autoApplySave.GetAwaiter().GetResult();
+   Check(window.Project.Source.Held(1,4)==0 && window.Project.InvalidFrom is null && !window.Project.IsEdited(1,4),"saving automatically applies and clears pending timeline edits");
+   Check(RecordingPackage.Load(autoSavePath).Replay.Held(1,4)==0 && !window.HasUnsavedChanges && !window.Title!.Contains(" *"),"save writes applied krec and clears unsaved title star");
+   Check(File.ReadAllBytes(replayPath).SequenceEqual(data),"save-as retains original recording bytes");
+   using(var editWorkflowImage=window.CaptureRenderedFrame()??throw new Exception("No edit workflow image"))editWorkflowImage.Save(Path.Combine(output,"timeline-edit-workflow.png"),new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
    var beforeCover=window.Project.Source.Bytes.ToArray();
    var cover=window.ToggleRecordingAsync();while(!cover.IsCompleted){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}cover.GetAwaiter().GetResult();
    Check(window.FindControl<Border>("GamePanel")!.IsFocused,"record takeover focuses embedded game preview");
@@ -202,6 +207,7 @@ internal static class Program {
    Check(!window.HasUnsavedChanges,"successful save marks current live prefix clean");
    window.AddBookmarkAt(0,"未保存重点");
    Check(window.HasUnsavedChanges,"bookmark changes require saving");
+   Check(window.Title!.Contains(" *"),"bookmark edits immediately show unsaved star in current krec title");
    var newCancelled=window.NewRecordingAsync();
    var promptDeadline=DateTime.UtcNow.AddSeconds(5);
    while(!window.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="PART_CloseButton") && DateTime.UtcNow<promptDeadline){Dispatcher.UIThread.RunJobs();Thread.Sleep(5);}

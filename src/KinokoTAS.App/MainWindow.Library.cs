@@ -38,7 +38,7 @@ public partial class MainWindow {
         var marks=packed?RecordingPackage.Load(path).Bookmarks:File.Exists(stored)?RecordingLibrary.LoadBookmarks(stored,frameCount??replay.Count):[];
         foreach(var mark in marks)bookmarks.Add(mark);
     }
-    void PersistBookmarks(){documentUnsaved=true;if(bookmarkFile is not null && Project?.HasLayoutChanges!=true)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);}
+    void PersistBookmarks(){documentUnsaved=true;if(bookmarkFile is not null && Project?.HasLayoutChanges!=true)RecordingLibrary.SaveBookmarks(bookmarkFile,bookmarks);RefreshEditWorkflow();}
     public async Task AddBookmarkAsync(string name) {
         int frame;
         if(Project?.HasLayoutChanges==true)frame=Timeline.SelectedFrame;
@@ -56,7 +56,7 @@ public partial class MainWindow {
     async void AddBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(()=>AddBookmarkAsync(BookmarkName.Text??""));
     async void ReturnBookmarkClick(object? s,RoutedEventArgs e)=>await Operate(ReturnSelectedBookmarkAsync);
     public async Task ReturnSelectedBookmarkAsync(){
-        if(Project?.HasLayoutChanges==true)throw new InvalidOperationException("请先应用帧布局修改，再返回书签画面。");
+        RequireAppliedLayout();
         if(BookmarkList.SelectedItem is not FrameBookmark mark)return;
         if(game is null){await LaunchGame(false);if(game is null)return;}
         using var cancel=new CancellationTokenSource();seeking=cancel;seekTarget=mark.Frame+1;
@@ -75,7 +75,6 @@ public partial class MainWindow {
     async void SaveRecordingClick(object? s,RoutedEventArgs e)=>await Operate(()=>SaveRecordingAsync());
     async void SaveRecordingAsClick(object? s,RoutedEventArgs e)=>await Operate(()=>SaveRecordingAsync(true));
     public async Task SaveRecordingAsync(bool saveAs=false) {
-        if(Project?.InvalidFrom is not null)throw new InvalidOperationException("输入修改尚未执行。请先点击“应用修改”，或另存输入草稿项目。");
         if(game?.IsRunning==true)await game.PauseAsync(default);
         if(game is null && Project is null)throw new InvalidOperationException("先新建或打开录制。");
         string? output=saveAs?null:recordingSavePath;
@@ -86,11 +85,13 @@ public partial class MainWindow {
         await SaveRecordingToAsync(output);
     }
     public async Task SaveRecordingToAsync(string output) {
-        if(Project?.InvalidFrom is not null)throw new InvalidOperationException("请先应用输入修改，或另存输入草稿项目。");
         if(game is null && Project is null)throw new InvalidOperationException("先新建或打开录制。");
         if(!Path.GetExtension(output).Equals(".krec",StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("请使用 .krec 扩展名。");
         output=Path.GetFullPath(output);
         if(game is not null && output.StartsWith(Path.GetFullPath(game.SessionDirectory)+Path.DirectorySeparatorChar,OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal))throw new IOException("请选择会话目录外的保存位置。");
+        // Saving always means a playable .krec, never an implicit .ktas fallback.
+        // Simulation/verification must succeed before the destination is touched.
+        if(Project?.InvalidFrom is not null)await ApplyEditsAsync();
         var initial=game is not null?Path.Combine(game.SessionDirectory,"initial"):await InitialDirectory(sourcePath);
         if(initial is null)return;
         Replay replay;
@@ -101,7 +102,7 @@ public partial class MainWindow {
         dirty=false;documentUnsaved=false;saveRevision++;
         savedLiveBranch=game?.BranchPath;savedLiveFrames=replay.Count;
         Refresh();
-        StatusLabel.Text="录制、初始存档及书签已保存。";
+        StatusLabel.Text="已保存 .krec：录制、初始存档及重点。";
     }
     void OpenSavedClick(object? s,RoutedEventArgs e){try{if(lastSaved is not null)Process.Start(new ProcessStartInfo(Path.GetDirectoryName(lastSaved)!){UseShellExecute=true});}catch(Exception ex){StatusLabel.Text="打开目录失败："+ex.Message;}}
 }

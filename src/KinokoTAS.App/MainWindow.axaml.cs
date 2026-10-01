@@ -59,24 +59,23 @@ public partial class MainWindow : Window {
             RangeStart.Value=RangeEnd.Value=JumpFrame.Value=0;
             SaveButton.IsEnabled=ExportButton.IsEnabled=true;
             HoldButton.IsEnabled=ReleaseButton.IsEnabled=Project.Source.Count>0;
-            StatusLabel.Text=$"已校验 {Project.Source.Count:N0} 帧 · 原始文件只读 · 橙点表示编辑";Refresh();
+            StatusLabel.Text=$"已打开 {Project.FrameCount:N0} 帧 · 黄色标记表示待应用编辑 · Ctrl+S 保存 .krec";Refresh();
         }catch(Exception ex){StatusLabel.Text="打开失败："+ex.Message;}
         finally{busy=false;}
     }
     private void OnChanged(){dirty=true;Refresh();}
     private void Refresh() {
         BindLayoutProject();
+        RefreshEditWorkflow();
         if(Project is null)return;
-        Title=$"{(dirty?"* ":"")}{Project.SourceName} — 6kinoko TAS";
         DocumentLabel.Text=$"{Project.SourceName}  ·  {Project.FrameCount:N0} 帧 / {Project.FrameCount/60.0:F2} 秒  ·  {Project.EditCount:N0} 处编辑";
-        UndoButton.IsEnabled=Project.CanUndo;RedoButton.IsEnabled=Project.CanRedo;
         int frame=Math.Clamp(Timeline.SelectedFrame,0,Math.Max(0,Project.FrameCount-1));
         Timeline.SelectedFrame=frame;FrameLabel.Text=Project.FrameCount==0?"空录制":frame.ToString("D6");
         if(Project.FrameCount>0){
             int original=Project.SourceFrame(frame);
             FrameDetails.Text=original<0?"新增空白帧 · 应用修改后生成校验值":$"时间 {frame/60.0:F3} 秒\n原始来源帧 {original}\n原始 RNG 前 {Project.Source.RandomBefore(original):X8}\n原始 RNG 后 {Project.Source.RandomAfter(original):X8}\n原始检查值\n{Project.Source.Checkpoint(original):X16}";
         }
-        ValidationLabel.Text=Project.InvalidFrom is int first ? $"输入从第 {first} 帧起有变化。点击“应用修改”或按 F5 重新模拟并验证，然后保存 .krec。" : "原始录制校验完整。连接游戏后可定位、逐帧或接管录制。";
+        ValidationLabel.Text=Project.InvalidFrom is int first ? $"第 {first:N0} 帧起有编辑。F5 应用到录制；Ctrl+S 应用并保存 .krec。" : "点击时间轴输入格修改按键；单击帧号选择，双击查看游戏画面。";
         Timeline.InvalidateVisual();
     }
     private void SelectFrame(int f) {
@@ -88,10 +87,10 @@ public partial class MainWindow : Window {
     }
     private async Task SaveProject(bool duringConfirmation=false) {
         if(Project is null || busy || (gameCommand && !duringConfirmation))return;
-        var file=await StorageProvider.SaveFilePickerAsync(new(){Title="另存 TAS 项目",SuggestedFileName=Path.GetFileNameWithoutExtension(Project.SourceName)+".ktas",DefaultExtension="ktas",FileTypeChoices=[new("TAS 项目"){Patterns=["*.ktas"]}]});
+        var file=await StorageProvider.SaveFilePickerAsync(new(){Title="导出编辑草稿（不是可回放录制）",SuggestedFileName=Path.GetFileNameWithoutExtension(Project.SourceName)+".ktas",DefaultExtension="ktas",FileTypeChoices=[new("编辑草稿（待应用）"){Patterns=["*.ktas"]}]});
         if(file?.TryGetLocalPath() is not string path)return;
         if(!Path.GetExtension(path).Equals(".ktas",StringComparison.OrdinalIgnoreCase)){StatusLabel.Text="项目必须使用 .ktas 扩展名。";return;}
-        try{Project.Save(path);RecordingLibrary.SaveBookmarks(path+".bookmarks.json",bookmarks);ShowSaved(path);dirty=false;documentUnsaved=false;saveRevision++;StatusLabel.Text="项目已保存："+path;Refresh();}catch(Exception ex){StatusLabel.Text="保存失败："+ex.Message;}
+        try{Project.Save(path);RecordingLibrary.SaveBookmarks(path+".bookmarks.json",bookmarks);StatusLabel.Text="编辑草稿已导出："+path+"；录制仍需用 Ctrl+S 保存为 .krec。";Refresh();}catch(Exception ex){StatusLabel.Text="草稿导出失败："+ex.Message;}
     }
     private async void ExportClick(object? s,RoutedEventArgs e) {
         if(Project is null || busy || gameCommand)return;

@@ -44,7 +44,7 @@ public partial class MainWindow {
     }
     public async Task ReplayAllAsync(){RequireAppliedLayout();if(game is null)throw new InvalidOperationException("先新建或打开录制。");await game.ReplayAllAsync();UpdatePlaybackProject();FollowLatest.IsChecked=true;RefreshGameView();}
     public async Task RestartGameAsync() {
-        if(Project?.InvalidFrom is not null){await ApplyEditsAsync();return;}
+        if(Project?.InvalidFrom is not null)throw new InvalidOperationException("请用时间轴上的“应用到录制”，或 Ctrl+S 应用并保存编辑。");
         if(game is null){await LaunchGame(false);return;}
         using var cancel=new CancellationTokenSource();seeking=cancel;seekTarget=game.ReadState()?.Completed??1;
         try{GameStatus.Text="重新启动游戏，正在恢复位置…";await game.RestartAsync(cancel.Token);timelineSource=null;previewCount=-1;orderedGameWindow=0;UpdatePlaybackProject();RefreshGameView();}

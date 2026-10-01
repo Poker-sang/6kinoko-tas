@@ -20,8 +20,8 @@ public partial class MainWindow {
         EmbeddedOption.IsEnabled=false;UpdatePlaybackProject();bookmarkFile=BookmarkCache(Project!.Source);Refresh();RefreshGameView();
     }
     public async Task ApplyEditsAsync() {
-        if(Project?.InvalidFrom is null)throw new InvalidOperationException("请先修改时间轴上的输入。");
-        if(game is null){await LaunchGame(false);if(game is null)return;}
+        if(Project?.InvalidFrom is null){StatusLabel.Text="时间轴没有待应用的编辑。Ctrl+S 保存录制。";return;}
+        if(game is null){await LaunchGame(false);if(game is null)throw new OperationCanceledException("已取消连接游戏，编辑尚未应用。");}
         if(game.IsLive)throw new InvalidOperationException("先关闭“录制”开关，再编辑已录制的输入。");
         var selectedFrame=Math.Clamp(Timeline.SelectedFrame,0,Project.FrameCount-1);
         var draft=Project;
@@ -32,13 +32,14 @@ public partial class MainWindow {
             var next=await old.ResimulateAsync(draft,new CallbackProgress(p=>{
                 operationProgress=$"{p.Stage}：{p.Completed:N0} / {p.Total:N0} 帧（{100.0*p.Completed/Math.Max(1,p.Total):F0}%）";
                 GameStatus.Text=operationProgress;
+                EditWorkflowLabel.Text=operationProgress;
             }),cancel.Token);
             try{await next.SeekAsync(selectedFrame,cancel.Token);}
             catch{await next.DisposeAsync();throw;}
             // Only adopt the result after a second complete, checkpoint-verified playback.
             await old.DisposeAsync();recoveries.Push(recovery);AdoptSession(next);PersistBookmarks();
             SelectFrame(selectedFrame);
-            dirty=false;StatusLabel.Text="修改已应用并验证，已返回所选帧；黄色待应用标记已清除，录制尚需保存。";
+            dirty=false;StatusLabel.Text="编辑已应用并验证，已返回所选帧；尚未保存到文件，按 Ctrl+S 保存 .krec。";
         } finally {busy=false;seeking=null;operationProgress=null;RefreshGameView();}
     }
     public async Task RestoreOverwriteAsync() {
@@ -64,6 +65,26 @@ public partial class MainWindow {
     async void RestoreOverwriteClick(object? sender,RoutedEventArgs e)=>await Operate(RestoreOverwriteAsync);
     void CancelOperationClick(object? sender,RoutedEventArgs e)=>seeking?.Cancel();
     public void CancelCurrentOperation()=>seeking?.Cancel();
+    void RefreshEditWorkflow() {
+        bool pending=Project?.InvalidFrom is not null;
+        bool available=!gameCommand && !busy && seeking is null;
+        ApplyEditsButton.IsEnabled=pending && available && game?.IsLive!=true;
+        SaveRecordingButton.Label=pending?"应用并保存录制":"保存录制";
+        SaveRecordingButton.IsEnabled=available && (Project is not null || game is not null);
+        UndoButton.IsEnabled=available && Project?.CanUndo==true;
+        RedoButton.IsEnabled=available && Project?.CanRedo==true;
+        bool unsaved=HasUnsavedChanges;
+        var filename=recordingSavePath is not null?System.IO.Path.GetFileName(recordingSavePath)
+            :Project is not null || game is not null?"未命名录制.krec":null;
+        Title=filename is null?"6kinoko TAS":$"{filename}{(unsaved?" *":"")} — 6kinoko TAS";
+        SavedPathLabel.Text=recordingSavePath is null?"录制尚未保存 · Ctrl+S 选择 .krec 路径"
+            :$"{(unsaved?"有未保存更改":"当前录制")}：{recordingSavePath}";
+        EditWorkflowLabel.Text=operationProgress ?? (pending
+            ?$"待应用 · {Project!.EditCount:N0} 处编辑 · F5 应用到录制，Ctrl+S 应用并保存 .krec"
+            :game is null && Project is null?"点击输入格编辑按键；F5 应用到录制，Ctrl+S 保存 .krec"
+            :unsaved?"录制未保存 · Ctrl+S 保存 .krec（包含重点和初始存档）"
+            :"录制已保存 · 时间轴没有待应用的编辑");
+    }
     async void EditorShortcut(object? sender,KeyEventArgs e) {
         if(dialogHost?.IsOpen==true)return;
         // Function keys work even when preview owns focus; text-editing keys stay local.

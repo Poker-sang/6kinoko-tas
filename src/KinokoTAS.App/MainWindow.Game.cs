@@ -146,10 +146,10 @@ public partial class MainWindow {
         if(!ReferenceEquals(playbackSession,game)){playbackSession=game;playbackState=null;}
         BindLayoutProject();
         CancelOperationButton.IsEnabled=seeking is not null;
-        ApplyEditsButton.IsEnabled=!gameCommand && !busy && Project?.InvalidFrom is not null && game?.IsLive!=true;
+        RefreshEditWorkflow();
         RestoreOverwriteButton.IsEnabled=!gameCommand && !busy && game is not null && recoveries.Count>0;
-        RestartGameButton.IsEnabled=!gameCommand && !busy && (Project?.InvalidFrom is not null || (game is not null?!game.IsRunning:Project is not null));
-        RestartGameButton.Label=Project?.InvalidFrom is not null?"应用并重新运行":"重新启动游戏";
+        RestartGameButton.IsEnabled=!gameCommand && !busy && Project?.InvalidFrom is null && (game is not null?!game.IsRunning:Project is not null);
+        RestartGameButton.Label="重新启动游戏";
         if(game is null){UpdatePlaybackButtons(null);return;}
         if(!game.IsRunning){playbackState=null;UpdatePlaybackButtons(null);EngineLabel.Text="游戏已关闭";GameStatus.Text=operationError??"点击“重新启动游戏”恢复当前录制。";return;}
         try {
@@ -183,11 +183,11 @@ public partial class MainWindow {
         PlayGameButton.IsVisible=!running;PauseGameButton.IsVisible=running;
         PlayGameButton.IsEnabled=game?.IsRunning==true && state?.Phase.EndsWith("paused")==true
             && (game.IsLive || state.Completed<state.Total) && !gameCommand && !busy && seeking is null
-            && Project?.HasLayoutChanges!=true;
+            && Project?.InvalidFrom is null;
         PauseGameButton.IsEnabled=running;
     }
     async Task SeekGame(int frame) {if(game is not null)await Operate(async()=>{
-        if(Project?.HasLayoutChanges==true)throw new InvalidOperationException("帧布局已修改，请先应用修改，再定位游戏画面。");
+        RequireAppliedLayout();
         using var token=new CancellationTokenSource();seeking=token;seekTarget=frame+1;
         try{GameStatus.Text="正在重播定位…";await game.SeekAsync(frame,token.Token);UpdatePlaybackProject();}finally{seeking=null;RefreshGameView();}
     });}
